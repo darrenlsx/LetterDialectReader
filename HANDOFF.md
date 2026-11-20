@@ -15,6 +15,19 @@ Read this file first. Add a new entry at the top before every push. Never put se
 
 ---
 
+### 2026-11-20, OzzyOw (summarisation built)
+- **Pushed:** branch `summarise-oci-generated-text`, summarisation feature (not yet merged to `main`). If you cannot see it on GitHub, the push is still pending.
+- **State:** works end to end against the real `deepseek-v4.1-flash` model with a sample letter. 7 unit tests pass (`npm test`).
+  - `src/summarise.js`: `summarise(text)` takes OCI-extracted letter text and returns `{ summary, key_details[], action_required, confident, unclear_parts[], missing_details[] }`. English output only; Hokkien translation and speech are not built.
+  - `server.js`: `POST /api/summarise` with `{ "text": "..." }`, plus static hosting. Run with `npm start`, open http://localhost:3000.
+  - `public/index.html`: simulated phone UI. Paste OCI text (or "Use sample letter"), tap Summarise.
+- **Decisions:**
+  - Endpoint is OpenCode Go (`https://opencode.ai/inference/go/openai/v1`), authenticated with `OPENCODE_API_KEY`, same as the lunch-uncle project.
+  - Critical-detail safety net: code extracts amounts, dates, IDs, phone numbers and times from the source. If any are missing from the output it retries once, then appends them verbatim and sets `confident` to false.
+  - No dependencies; Node 26 built-ins only (`node --env-file`, `node --test`).
+- **Needs from you:** how the real OCI step will call `summarise` (the function takes plain text, so wire it in after OCI). Decide where the Hokkien translation step sits.
+- **Local-only info:** `.env` with `OPENCODE_API_KEY` must be created from `.env.template`. `.agents/`, `.claude/` and `skills-lock.json` are untracked and not committed.
+
 ### 2026-11-20, OzzyOw
 - **Pushed:** `main` (`.env.template`, `.gitignore`); branch `summarise-oci-generated-text` created
 - **State:** branch `summarise-oci-generated-text` is for building the summarisation function. No code yet.
