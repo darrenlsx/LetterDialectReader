@@ -22,6 +22,18 @@ Read this file first. Add a new entry at the top before every push. Never put se
 - **Needs from you:** In the Python port, please serve `static/logo.svg` and use it in the header and as the favicon (`<link rel="icon" type="image/svg+xml" href="/static/logo.svg">`).
 - **Local-only info:** none
 
+### 2026-11-20, OzzyOw (translation function for Hokkien TTS)
+- **Pushed:** `main` (from branch `translation-feature`): `translate/` package and `tests/test_translate.py`
+- **State:** `from translate import translate`; `translate(summary_text)` returns `{text, confident, missing_details}`. `text` is plain spoken-style Chinese for the Hokkien TTS: no pinyin, markdown, brackets or English. 14 tests pass (`python -m pytest tests/test_translate.py`). Live check against `deepseek-v4.1-flash` passed (about 7s, all numbers kept, an injected "ignore previous instructions" line was translated as data, not obeyed). Not wired into `app.py`; no endpoint yet.
+- **Decisions:**
+  - Same model, endpoint and env vars as the summary (`OPENCODE_API_KEY`, optional `LLM_BASE_URL`, `LLM_MODEL`). No new vars. Standard library only.
+  - Call it with `summarise(...)["summary"]`. It does not import the summariser: `main` only has the Node one, and the Python port is on `feature/ocr-summary` (not merged). The HTTP helper is duplicated; dedupe once both are merged.
+  - Output is Simplified Chinese (Singapore) by default; `translate(text, script="traditional")` switches. Both are standard written Chinese, not Hokkien-specific characters, because the TTS engine isn't chosen yet. If it wants Hokkien Hanji or Tâi-lô, change `SYSTEM_PROMPT` in `translate/engine.py`.
+  - Numbers stay as Arabic digits (dates as 2026年4月11日, money as 1,284.50新币). A code check confirms every digit run in the English appears in the Chinese; one retry, then `confident` is False and the missing numbers are listed. The text is never altered after the model returns it.
+  - `confident` False (or `TranslateError`) should become the spoken "try once more" / "ask family" prompt from the brief; that endpoint/UI part is not done.
+- **Needs from you:** which TTS engine and what text form it wants (Simplified, Traditional, Hanji or Tâi-lô, and whether it reads digits correctly in Hokkien). Whoever merges `feature/ocr-summary` and this branch: add `POST /api/translate` (or extend `/api/summary`) in `app.py`.
+- **Local-only info:** `.env` needs `OPENCODE_API_KEY`, same as the summary. Tests use fake model calls and need no key.
+
 ### 2026-11-20, OzzyOw (review fixes)
 - **Pushed:** branch `summarise-oci-generated-text`, fixes from a code review of the summarisation feature
 - **State:** 49 tests pass (`npm test`). Live check against `deepseek-v4.1-flash` passed, including a letter with an injected "ignore previous instructions" line (flagged as suspicious, `confident` false).
