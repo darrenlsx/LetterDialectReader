@@ -109,14 +109,12 @@ const statusEl = document.getElementById("status");
 const errorEl = document.getElementById("error");
 const textCard = document.getElementById("text-card");
 const textEl = document.getElementById("text");
-const timingEl = document.getElementById("timing");
 
 const summaryCard = document.getElementById("summary-card");
 const markEl = document.getElementById("mark");
 const summaryStatus = document.getElementById("summary-status");
 const summaryEl = document.getElementById("summary");
 const warnEl = document.getElementById("warn");
-const summaryTiming = document.getElementById("summary-timing");
 
 // The translation lives inside the summary card: only the Chinese text is shown.
 const translationStatus = document.getElementById("translation-status");
@@ -133,7 +131,6 @@ const listenProgress = document.getElementById("listen-progress");
 const playBtn = document.getElementById("play");
 const player = document.getElementById("player");
 const listenWarn = document.getElementById("listen-warn");
-const listenTiming = document.getElementById("listen-timing");
 
 // Roughly one sentence per chunk: a small last chunk lets playback start earlier.
 const CHUNK_MIN_CHARS = 12;
@@ -230,7 +227,6 @@ function resetListen() {
   setPlaying(false);
   listenWarn.hidden = true;
   listenWarn.textContent = "";
-  listenTiming.textContent = "";
 }
 
 function setPlaying(playing) {
@@ -275,7 +271,6 @@ function resetSummary() {
   summaryEl.textContent = "";
   warnEl.hidden = true;
   warnEl.textContent = "";
-  summaryTiming.textContent = "";
 }
 
 function setMark(ok) {
@@ -308,7 +303,7 @@ let currentRun = 0;
 let controller = null;
 const isCurrent = (run) => run === currentRun;
 
-async function summarise(text, startedAt, run, signal) {
+async function summarise(text, run, signal) {
   summaryCard.hidden = false;
   summaryStatus.hidden = false;
   let summarised = null;
@@ -324,19 +319,17 @@ async function summarise(text, startedAt, run, signal) {
     if (!res.ok) throw new Error(data.detail || "Something went wrong. Please try again.");
     renderSummary(data);
     summarised = data.summary;
-    summaryTiming.textContent = `Explained in ${data.seconds}s`;
   } catch (err) {
     if (!isCurrent(run) || err.name === "AbortError") return;
     showCross(`${err.message} Please try once more.`);
   }
   // The summary flows straight into translation; no tap needed.
-  if (summarised) await translateSummary(summarised, startedAt, run, signal);
+  if (summarised) await translateSummary(summarised, run, signal);
 }
 
-async function translateSummary(text, startedAt, run, signal) {
+async function translateSummary(text, run, signal) {
   let translated = null;
   translationStatus.hidden = false;
-  const explained = summaryTiming.textContent;
   try {
     const res = await fetch("/api/translate", {
       method: "POST",
@@ -355,7 +348,6 @@ async function translateSummary(text, startedAt, run, signal) {
       ? ""
       : `I could not translate this confidently${missing.length ? ` (missing: ${missing.join(", ")})` : ""}. Please ask family to check it.`;
     translationWarn.hidden = data.confident;
-    summaryTiming.textContent = `${explained} · Translated in ${data.seconds}s · ${((performance.now() - startedAt) / 1000).toFixed(1)}s from photo`;
     // The voice reads the Hokkien-wording version (never shown on screen);
     // the Chinese is the fallback if the Hokkien rewrite failed.
     translated = data.hokkien || data.text;
@@ -366,10 +358,10 @@ async function translateSummary(text, startedAt, run, signal) {
     translationWarn.hidden = false;
   }
   // The voice is prepared straight away (it is slow on CPU); the user taps Play when ready.
-  if (translated) await speak(translated, startedAt, run, signal);
+  if (translated) await speak(translated, run, signal);
 }
 
-async function speak(text, startedAt, run, signal) {
+async function speak(text, run, signal) {
   const parts = splitForSpeech(text);
   if (!parts.length) return;
   voice.total = parts.length;
@@ -377,9 +369,6 @@ async function speak(text, startedAt, run, signal) {
   listenCard.hidden = false;
   listenStatus.hidden = false;
   listenProgress.textContent = `正在准备声音… 0/${parts.length} · Preparing the voice…`;
-  const t0 = performance.now();
-  const fromPhoto = () => ((performance.now() - startedAt) / 1000).toFixed(1);
-  let playableAt = null;
 
   for (let i = 0; i < parts.length; i++) {
     const tChunk = performance.now();
@@ -416,7 +405,6 @@ async function speak(text, startedAt, run, signal) {
 
     if (!voice.playable && safeToStart(voice)) {
       voice.playable = true;
-      playableAt = fromPhoto();
       playBtn.hidden = false;
     }
     if (voice.waiting && voice.playing) playChunk(voice.index); // playback caught up: resume
@@ -428,9 +416,6 @@ async function speak(text, startedAt, run, signal) {
       listenStatus.hidden = true;
     }
   }
-  listenTiming.textContent =
-    `Play ready ${playableAt}s from photo · all ${parts.length} parts ready in ` +
-    `${((performance.now() - t0) / 1000).toFixed(1)}s (${voice.audioSeconds.toFixed(1)}s of speech)`;
 }
 
 input.addEventListener("change", async () => {
@@ -456,7 +441,6 @@ input.addEventListener("change", async () => {
   preview.src = URL.createObjectURL(file);
   preview.hidden = false;
   statusEl.hidden = false;
-  const startedAt = performance.now();
 
   const form = new FormData();
   form.append("file", file);
@@ -478,7 +462,6 @@ input.addEventListener("change", async () => {
   statusEl.hidden = true;
   const text = ocr.text || "";
   textEl.textContent = text || "找不到文字，请拍清楚一点。(No text found. Try a clearer photo.)";
-  timingEl.textContent = `Read in ${ocr.seconds}s`;
   textCard.hidden = false;
 
   // The server decides: enough text, read with enough confidence.
@@ -486,5 +469,5 @@ input.addEventListener("change", async () => {
     showCross(BLURRY_MESSAGE);
     return;
   }
-  await summarise(text, startedAt, run, signal);
+  await summarise(text, run, signal);
 });
