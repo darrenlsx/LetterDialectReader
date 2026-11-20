@@ -390,3 +390,5 @@ body {
 .play-button.playing .en { color: #dce8ff; }
 .play-icon { font-size: 26px; }
 .listen-card .status .en { display: block; width: 100%; font-size: 14px; }
+/* display:flex above would otherwise override the hidden attribute */
+.play-button[hidden], #listen-card[hidden] { display: none; }

@@ -15,6 +15,47 @@ Read this file first. Add a new entry at the top before every push. Never put se
 
 ---
 
+### 2026-11-20, darrenlsx (real Hokkien voice in the Listen card)
+- **Pushed:** branch `feature/listen-button` (PR into `main`), with `main` (simulated TTS, PR #8) merged in.
+- **State:** Works end to end in the browser on a CPU-only laptop (i7-1165G7, 16 GB RAM, torch 2.15 CPU).
+  - A short fake clinic letter went through OCR → summary → translation in about 25 s.
+  - The **real** `/api/tts` voice was then ready after 398 s (13.8 s of audio, 70 Chinese characters; that includes the first model load).
+  - 120 tests pass.
+  - Nobody has listened closely yet, so the Hokkien quality is unverified.
+- **Decisions:**
+  - The simulated TTS is replaced by the real `POST /api/tts` call, with no fallback. `static/sample_tts.wav` stays in the repo but isn't used.
+  - The full Chinese translation is spoken. While it waits, the card shows "正在准备声音…". When ready, a big green ▶ 播放 / ❚❚ 暂停 button appears, and the user taps it (no autoplay, because browsers block audio that starts by itself after a long wait).
+  - Errors show inside the card ("声音暂时不能用…"). A new photo cancels the pending voice.
+  - Fixed: the Play button's `display:flex` overrode `[hidden]`.
+- **Needs from you:**
+  - Speed is next. OmniVoice docs recommend `num_step=16` (default 32) for faster inference. A short spoken line (about 40 characters, in **Hokkien wording**, not Mandarin) would also cut the time a lot. Could the summary/translate step return a short `spoken_line` in Hokkien wording?
+  - The translation keeps English names ("Sample Clinic") in the Chinese text.
+- **Local-only info:** the voice needs `pip install -r tts/requirements.txt` (CPU torch: `--index-url https://download.pytorch.org/whl/cpu`). The model (about 2.85 GB) downloads to `~/.cache/huggingface` on first use.
+
+### 2026-11-20, OzzyOw (TTS integration demo)
+- **Pushed:** branch `tts-integration-demo`, merged into `main`: Listen card in the UI plus `static/sample_tts.wav`.
+- **State:** After the Chinese translation appears, the Listen card shows "正在生成语音…" for 5 s, then plays `static/sample_tts.wav` (autoplay, with visible controls in case the browser blocks it). Checked in the browser with the OCR/summary/translate replies stubbed: spinner 5.0 s, then audio playing (7.7 s). Not checked end to end with the real pipeline in the UI. Nobody has listened to the clip, so whether it sounds like Hokkien is unverified.
+- **Decisions:**
+  - TTS is simulated, not called: `speak()` in `static/app.js` waits 5 s and plays the fixed file. Replace it with a `POST /api/tts` call (the endpoint already exists) when a GPU is available.
+  - The wav was generated with `tts_cli.py` on CPU from only the first two sentences of the sample translation (full text did not finish in 25 min on CPU). It plays after any letter, not only the sample one. "Sample Agency of Singapore" stays in English in the text, so it may be mispronounced.
+  - The Listen placeholder card in `index.html` is replaced by the real card (`#listen-card`).
+- **Needs from you:** `feature/listen-button` (143617c) overlaps this card and may now conflict; reconcile or drop it. Listen to the clip.
+- **Local-only info:** none.
+
+### 2026-11-20, darrenlsx (remove key details)
+- **Pushed:** `main` directly. Removed the 重要资料 Key details list from the Summary card (HTML and JS). The card now shows only the ✓/✗ mark, the Chinese summary and the timing line.
+- **State:** 120 tests pass. Checked in the browser with the sample letter: only Chinese text shown, no errors.
+- **Decisions:** `key_details` is still returned by `/api/summary` but not shown. The English "ask family to check" warning is kept as the only safety signal; it may later be shown in Chinese.
+- **Needs from you:** none
+- **Local-only info:** none
+
+### 2026-11-20, darrenlsx (Chinese-only summary)
+- **Pushed:** `main` directly (no branch). The 摘要 Summary card now shows only the Chinese translation. The English summary is hidden and the separate 中文 card is gone.
+- **State:** 120 tests pass. Checked in the browser with `samples/sample_letter.jpg`: ✓ shown, Chinese text, no warnings, 38s from photo. ESLint is not installed locally, so lint was not run.
+- **Decisions:** The English summary is still fetched (translation needs it) but not shown. Key details (重要资料) are still in English from the summary step. Warnings and the ✓/✗ mark are kept. `#translation` now sits inside `#summary-card`; `#summary` is only used for error messages.
+- **Needs from you:** `feature/listen-button` (143617c) is not on `main` yet. Its Listen wiring may read the old `translation-card` or `translation-timing` elements, so check it when merging.
+- **Local-only info:** none
+
 ### 2026-11-20, OzzyOw (Hokkien TTS)
 - **Pushed:** branch `feature/text-to-speech` (merged with `main` at 4b24950): `tts/` module, `POST /api/tts` in `app.py`, `tts_cli.py`, `tts/requirements.txt`, `tests/test_tts.py`, README section.
 - **State:** All 120 pytest tests pass (27 of them for TTS, with the model stubbed). Also run with the real model on a CPU-only Windows laptop (torch 2.15 CPU, omnivoice 0.2.1): the CLI and `POST /api/tts` return valid 24 kHz mono WAV (audible, not silent) for Hokkien text, and English-only text is rejected with 400. **Nobody has listened to it yet, so whether it sounds like Hokkien is unverified.**

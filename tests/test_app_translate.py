@@ -122,5 +122,6 @@ def test_unexpected_exception_is_generic_500(client, monkeypatch):
     assert res.status_code == 500 and "SECRET" not in res.text
 
 
-def test_page_has_translation_card(client):
-    assert "translation-card" in client.get("/").text
+def test_page_shows_translation_in_summary_card(client):
+    page = client.get("/").text
+    assert 'id="translation"' in page and "translation-card" not in page
