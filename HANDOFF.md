@@ -15,6 +15,22 @@ Read this file first. Add a new entry at the top before every push. Never put se
 
 ---
 
+### 2026-11-20, darrenlsx (landing page)
+- **Pushed:** branch `feature/landing-page`. Landing page with dialect choice, plus a keynote-style demo stage (all in `static/`; no API changes)
+- **State:** Works and was tested in the browser at desktop and phone widths.
+  - **First screen:** large 福建话 / 广东话 / 潮州话 cards. Cantonese and Teochew are disabled ("即将推出 coming soon").
+  - **Picking Hokkien:** ✓ pops, the photo screen slides in (iOS-style push), and the choice is saved.
+  - **换语言:** slides back to the language screen.
+  - **Demo stage:** the phone sits on a dark stage with a headline and 3 feature cards. Screen labels are Chinese first, with English underneath.
+- **Decisions:**
+  - On-screen text is Mandarin-first, per PRODUCT_BRIEF.md.
+  - No audio on the language screen yet (no MERaLion yet).
+  - The pitch text says "seniors who find official letters hard to read or understand", not only those who can't read English.
+- **Needs from you:**
+  - The chosen dialect is in the browser at `localStorage['letterReader.dialect']`; it is currently always `"hokkien"`. Please send it with the summary/speech requests.
+  - For the Python port: keep `static/` as the UI. The Summary and Listen cards in `#screen-photo` are ready to fill in.
+- **Local-only info:** none
+
 ### 2026-11-20, darrenlsx (logo)
 - **Pushed:** branch `feature/logo`: app logo `static/logo.svg` (信 in a speech bubble, blue `#0b5ed7`, same as the main button), shown in the phone header and used as the favicon
 - **State:** Works in the OCR demo (`static/`). Not yet in `public/index.html` (the Node page).
