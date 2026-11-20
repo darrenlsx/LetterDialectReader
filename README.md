@@ -9,7 +9,7 @@ This is a proof of concept. It runs in a desktop browser, inside a phone mock-up
 |------|-------|--------|
 | OCR (image → text) | Darren | ✅ `ocr/` |
 | Explanation / summary | Teammate | ⏳ |
-| Text-to-speech (MERaLion) | Both | ⏳ |
+| Text-to-speech (Hokkien, MERaLiON-OmniVoice) | Both | 🧪 `tts/` (module + `/api/tts`; not yet wired into the UI) |
 
 ## Setup (Windows, Python 3.11)
 
@@ -49,6 +49,27 @@ It raises `FileNotFoundError` if the file is missing, and `ocr.UnsupportedImageE
 After the model has loaded, each letter takes about 3 seconds on a laptop CPU.
 
 API endpoint: `POST /api/ocr` takes a multipart `file` and returns `{"text": ..., "seconds": ...}`.
+
+## Using the Hokkien TTS module
+
+```python
+from tts import synthesise
+
+wav_bytes = synthesise("你阿母煮的菜真好食")   # Hokkien in Chinese characters -> WAV (24 kHz mono)
+```
+
+Uses [MERaLiON-OmniVoice-Hokkien-TTS](https://huggingface.co/MERaLiON/MERaLiON-OmniVoice-Hokkien-TTS) (about 2.7 GB, downloaded on first use). **It does not translate.** The input must already be Hokkien written in Chinese characters; English or plain Mandarin wording gives poor speech. Translation happens in an earlier step.
+
+Setup (optional, on top of the steps above; a CUDA GPU is recommended):
+
+```powershell
+pip install -r tts/requirements.txt
+python tts_cli.py "你阿母煮的菜真好食" --out output/hello.wav
+```
+
+`synthesise` raises `tts.TtsError` with `code` `bad_input`, `unavailable` (dependencies or model missing) or `synthesis_failed`. Optional env vars (`TTS_MODEL`, `TTS_DEVICE`, `TTS_REF_AUDIO`, `TTS_REF_TEXT` for voice cloning) are documented in `tts/engine.py`.
+
+API endpoint: `POST /api/tts` takes `{"text": "..."}` and returns `audio/wav`. Tests: `pip install pytest httpx`, then `pytest tests`.
 
 ## Notes
 

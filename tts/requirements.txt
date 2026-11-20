@@ -1,0 +1,6 @@
+# Hokkien TTS (MERaLiON-OmniVoice-Hokkien-TTS). Optional: the rest of the app runs without it.
+# Install on top of the main requirements:  pip install -r tts/requirements.txt
+# torch: pick the build for your machine from https://pytorch.org (CUDA GPU recommended).
+torch
+transformers
+omnivoice
