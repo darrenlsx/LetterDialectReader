@@ -74,9 +74,16 @@
         <p id="timing" class="timing"></p>
       </section>
 
-      <section class="card placeholder">
-        <h2>摘要 <span class="en">Summary</span></h2>
-        <p>即将推出 · Coming soon</p>
+      <section class="card" id="summary-card" hidden>
+        <h2><span id="mark" class="mark" aria-hidden="true"></span> 摘要 <span class="en">Summary</span></h2>
+        <div id="summary-status" class="status" hidden>
+          <span class="spinner"></span> 正在解释… <span class="en">Explaining…</span>
+        </div>
+        <p id="summary" class="summary"></p>
+        <div id="warn" class="warn" hidden></div>
+        <h3 id="details-heading" hidden>重要资料 <span class="en" style="display:inline">Key details</span></h3>
+        <ul id="details" class="details"></ul>
+        <p id="summary-timing" class="timing"></p>
       </section>
 
       <section class="card placeholder">

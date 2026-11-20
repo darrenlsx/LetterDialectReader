@@ -28,8 +28,34 @@ Read this file first. Add a new entry at the top before every push. Never put se
   - The pitch text says "seniors who find official letters hard to read or understand", not only those who can't read English.
 - **Needs from you:**
   - The chosen dialect is in the browser at `localStorage['letterReader.dialect']`; it is currently always `"hokkien"`. Please send it with the summary/speech requests.
-  - For the Python port: keep `static/` as the UI. The Summary and Listen cards in `#screen-photo` are ready to fill in.
+  - `main` (your Python port and summary) is merged into this branch. Your Summary card is kept as is, with Chinese-first labels (摘要, 正在解释…, 重要资料); the Listen card is still a placeholder.
 - **Local-only info:** none
+
+### 2026-11-20, OzzyOw (review fixes on `feature/ocr-summary`)
+- **Pushed:** branch `feature/ocr-summary` (PR #3), fixes from a code review, plus `main` (logo) merged in
+- **State:** 64 tests pass (`python -m pytest`), lint clean.
+- **Decisions:**
+  - **Blurry photos:** `ocr/engine.py` has a new `extract_text_with_confidence(path) -> (text, score)`; `extract_text` is unchanged for callers. `/api/ocr` now also returns `confidence` and `readable`. `readable` needs 20+ characters and confidence ≥ 0.9. Calibrated on `samples/sample_letter.jpg`: blur radius 0-3 scored 0.94-0.97 and read correctly; radius 4 scored 0.83 and misread the date as "20 Noventer 2828", so it now gets the cross instead of a wrong summary. **Please re-check the threshold with real phone photos.**
+  - **API guard (middleware) for `/api/ocr` and `/api/summary`:** cross-origin check, optional `ACCESS_TOKEN`, per-IP rate limits (summary 5/min, OCR 10/min), and `Content-Length` required and capped before any body is read.
+  - **Phone UI:** a new photo aborts the previous photo's requests, and late replies are ignored, so two letters can't mix on screen.
+  - `.env` loading now strips inline comments (`RATE_LIMIT_MAX=5  # note` → `5`) and accepts quotes and `export`.
+- **How to run on the phone:** set `ACCESS_TOKEN` in `.env`, run `uvicorn app:app --host 0.0.0.0`, open `http://<your-LAN-IP>:8000/?token=<value>` once on the phone.
+- **Needs from you:** review the `ocr/engine.py` change (new function; scores come from PaddleOCR's `rec_scores`).
+- **Local-only info:** none new.
+
+### 2026-11-20, OzzyOw (summary ported to Python, wired into the OCR app)
+- **Pushed:** branch `feature/ocr-summary` (PR into `main`): photo → OCR → summary in one flow in the Python app
+- **State:**
+  - `summary/` is a Python port of the Node summariser (`from summary import summarise`), same behaviour and tests, standard library only.
+  - `app.py` has `POST /api/summary` (JSON `{text}`), rate-limited per IP, rejects cross-origin POSTs, generic errors to the phone with details in the server log. It loads `.env` itself.
+  - `static/`: after OCR, the Summary card fills in automatically: tick/cross, summary, "please ask family" warning when not confident, key details, total time from photo. OCR text under 20 characters shows a cross and "Photo was blurry. Please take the picture again."
+  - Tests: `python -m pytest` (`tests/`). Lint: `npm run lint` (ESLint for `static/app.js`).
+- **Decisions:**
+  - One runtime: the Node server (`server.js`, `src/`, `public/`, `test/`) is removed; Python is the only app.
+  - Run with `uvicorn app:app --reload`, open http://localhost:8000. For the phone on the LAN add `--host 0.0.0.0` (the summary endpoint is rate-limited; there's no access token any more).
+  - Install with `pip install -r requirements-dev.txt` (adds pytest and httpx for tests).
+- **Needs from you:** review `app.py` and `static/` changes, since they're your files. Speech (MERaLion) and Hokkien output are still to do; the summary is English.
+- **Local-only info:** `.env` needs `OPENCODE_API_KEY` (copy `.env.template`).
 
 ### 2026-11-20, darrenlsx (logo)
 - **Pushed:** branch `feature/logo`: app logo `static/logo.svg` (信 in a speech bubble, blue `#0b5ed7`, same as the main button), shown in the phone header and used as the favicon
@@ -37,6 +63,18 @@ Read this file first. Add a new entry at the top before every push. Never put se
 - **Decisions:** We picked 信 ("letter") because the users read Chinese rather than English. The speech bubble stands for "read aloud to you".
 - **Needs from you:** In the Python port, please serve `static/logo.svg` and use it in the header and as the favicon (`<link rel="icon" type="image/svg+xml" href="/static/logo.svg">`).
 - **Local-only info:** none
+
+### 2026-11-20, OzzyOw (translation function for Hokkien TTS)
+- **Pushed:** `main` (from branch `translation-feature`): `translate/` package and `tests/test_translate.py`
+- **State:** `from translate import translate`; `translate(summary_text)` returns `{text, confident, missing_details}`. `text` is plain spoken-style Chinese for the Hokkien TTS: no pinyin, markdown, brackets or English. 14 tests pass (`python -m pytest tests/test_translate.py`). Live check against `deepseek-v4.1-flash` passed (about 7s, all numbers kept, an injected "ignore previous instructions" line was translated as data, not obeyed). Not wired into `app.py`; no endpoint yet.
+- **Decisions:**
+  - Same model, endpoint and env vars as the summary (`OPENCODE_API_KEY`, optional `LLM_BASE_URL`, `LLM_MODEL`). No new vars. Standard library only.
+  - Call it with `summarise(...)["summary"]`. It does not import the summariser: `main` only has the Node one, and the Python port is on `feature/ocr-summary` (not merged). The HTTP helper is duplicated; dedupe once both are merged.
+  - Output is Simplified Chinese (Singapore) by default; `translate(text, script="traditional")` switches. Both are standard written Chinese, not Hokkien-specific characters, because the TTS engine isn't chosen yet. If it wants Hokkien Hanji or Tâi-lô, change `SYSTEM_PROMPT` in `translate/engine.py`.
+  - Numbers stay as Arabic digits (dates as 2026年4月11日, money as 1,284.50新币). A code check confirms every digit run in the English appears in the Chinese; one retry, then `confident` is False and the missing numbers are listed. The text is never altered after the model returns it.
+  - `confident` False (or `TranslateError`) should become the spoken "try once more" / "ask family" prompt from the brief; that endpoint/UI part is not done.
+- **Needs from you:** which TTS engine and what text form it wants (Simplified, Traditional, Hanji or Tâi-lô, and whether it reads digits correctly in Hokkien). Whoever merges `feature/ocr-summary` and this branch: add `POST /api/translate` (or extend `/api/summary`) in `app.py`.
+- **Local-only info:** `.env` needs `OPENCODE_API_KEY`, same as the summary. Tests use fake model calls and need no key.
 
 ### 2026-11-20, OzzyOw (review fixes)
 - **Pushed:** branch `summarise-oci-generated-text`, fixes from a code review of the summarisation feature
