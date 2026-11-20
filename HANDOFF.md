@@ -15,6 +15,17 @@ Read this file first. Add a new entry at the top before every push. Never put se
 
 ---
 
+### 2026-11-21, darrenlsx (voice made in one piece again)
+- **Pushed:** branch `single-voice`, merged into `main`.
+- **State:** The Listen card now sends the whole Hokkien text to `/api/tts` in **one** request again. It shows "正在准备声音，请稍等…" and then the ▶ 播放 button when everything is ready. Checked in the browser (one request with the full text; Play only after it finished); 148 tests pass.
+- **Decisions:**
+  - Sentence-by-sentence voices sounded like a **different speaker per sentence**, because the reference voice is off and the model invents a voice per generation.
+  - On this CPU the chunks also gave no earlier Play, so one piece is strictly better here.
+  - The chunk code stays behind `SPEAK_IN_CHUNKS = false` in `static/app.js`, for a GPU later (it would need `TTS_REF_AUDIO=bundled` to keep one speaker).
+  - Preload, 10 steps and the Hokkien rewrite are unchanged.
+- **Needs from you:** nothing.
+- **Local-only info:** none.
+
 ### 2026-11-21, darrenlsx (no timing text in the app)
 - **Pushed:** branch `remove-timings`, merged into `main`.
 - **State:** The phone no longer shows how long anything took. Removed:
