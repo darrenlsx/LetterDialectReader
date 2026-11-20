@@ -127,7 +127,8 @@ test("phone-like numbers are 8-11 digits with single separators", () => {
 // --- Finding 2: confident fails closed -------------------------------------
 
 test("confident is false when missing, a string, or unclear_parts is non-empty", async () => {
-  const { confident, ...noConfident } = GOOD;
+  const noConfident = { ...GOOD };
+  delete noConfident.confident;
   for (const obj of [noConfident, { ...GOOD, confident: "true" }, { ...GOOD, confident: "false" }, { ...GOOD, confident: 1 }]) {
     const r = await summarise(LETTER, env, reply(obj));
     assert.equal(r.confident, false, JSON.stringify(obj.confident));
