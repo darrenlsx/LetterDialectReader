@@ -15,6 +15,19 @@ Read this file first. Add a new entry at the top before every push. Never put se
 
 ---
 
+### 2026-11-20, OzzyOw (review fixes)
+- **Pushed:** branch `summarise-oci-generated-text`, fixes from a code review of the summarisation feature
+- **State:** 49 tests pass (`npm test`). Live check against `deepseek-v4.1-flash` passed, including a letter with an injected "ignore previous instructions" line (flagged as suspicious, `confident` false).
+- **Decisions:**
+  - Critical-detail check now compares canonical values (dates day-first, amounts, times, IDs/phones) as whole tokens, so "$500" no longer satisfies "$50" and "April 11, 2026" counts as "11 April 2026".
+  - `confident` is true only if the model says exactly `true` and `unclear_parts` is empty.
+  - Letter text is wrapped in a random per-request tag and treated as untrusted data.
+  - One retry on bad JSON, timeout, 429 or 5xx (not 401/403). Client sees generic errors only; details go to the server log.
+  - Server binds to 127.0.0.1 by default, rate-limits `/api/summarise` (5/min/IP), rejects cross-origin POSTs, optional `ACCESS_TOKEN`.
+- **How to run:** `npm start`, open http://localhost:3000. For the real-phone demo set `HOST=0.0.0.0` and `ACCESS_TOKEN` in `.env`, then open `http://<your-LAN-IP>:3000/?token=<value>` once on the phone. All optional vars are listed in `.env.template`.
+- **Needs from you:** same as below (OCI wiring, where Hokkien translation sits).
+- **Local-only info:** none new.
+
 ### 2026-11-20, OzzyOw (summarisation built)
 - **Pushed:** branch `summarise-oci-generated-text`, summarisation feature (not yet merged to `main`). If you cannot see it on GitHub, the push is still pending.
 - **State:** works end to end against the real `deepseek-v4.1-flash` model with a sample letter. 7 unit tests pass (`npm test`).
