@@ -349,7 +349,6 @@ body {
   white-space: pre-wrap;
   font-size: 20px; line-height: 1.5;
 }
-.timing { margin: 8px 0 0; font-size: 14px; color: var(--muted); }
 .mark { font-weight: 800; }
 .mark.tick { color: #1f7a3d; }
 .mark.cross { color: #b3261e; }

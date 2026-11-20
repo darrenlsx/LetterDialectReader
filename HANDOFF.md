@@ -15,6 +15,20 @@ Read this file first. Add a new entry at the top before every push. Never put se
 
 ---
 
+### 2026-11-21, darrenlsx (no timing text in the app)
+- **Pushed:** branch `remove-timings`, merged into `main`.
+- **State:** The phone no longer shows how long anything took. Removed:
+  - "Read in Xs" (letter text card)
+  - "Explained in / Translated in / from photo" (summary card)
+  - "Play ready… / parts ready in…" (Listen card)
+  - the `.timing` style
+  - the `startedAt` plumbing in `static/app.js`
+
+  The stage card "Read in about 3 seconds" now says "Reads the whole letter". The voice progress line "正在准备声音… 3/7" stays. Checked in the browser (voice stubbed); 148 tests pass.
+- **Decisions:** Users don't need timings. The APIs still return `seconds`, so it can be used for debugging.
+- **Needs from you:** nothing.
+- **Local-only info:** none.
+
 ### 2026-11-21, darrenlsx (app opens on the language screen)
 - **Pushed:** branch `update-ui`, merged into `main`.
 - **State:** The app now always opens on the dialect choice (福建话 / 广东话 / 潮州话), even if a dialect was picked before. Before this, it skipped straight to the photo screen when one was saved. Checked in the browser with a saved dialect: it opens on the language screen, and picking 福建话 still slides to the photo screen. 148 tests pass.
