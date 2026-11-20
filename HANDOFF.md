@@ -15,6 +15,16 @@ Read this file first. Add a new entry at the top before every push. Never put se
 
 ---
 
+### 2026-11-20, OzzyOw (TTS integration demo)
+- **Pushed:** branch `tts-integration-demo`, merged into `main`: Listen card in the UI plus `static/sample_tts.wav`.
+- **State:** After the Chinese translation appears, the Listen card shows "正在生成语音…" for 5 s, then plays `static/sample_tts.wav` (autoplay, with visible controls in case the browser blocks it). Checked in the browser with the OCR/summary/translate replies stubbed: spinner 5.0 s, then audio playing (7.7 s). Not checked end to end with the real pipeline in the UI. Nobody has listened to the clip, so whether it sounds like Hokkien is unverified.
+- **Decisions:**
+  - TTS is simulated, not called: `speak()` in `static/app.js` waits 5 s and plays the fixed file. Replace it with a `POST /api/tts` call (the endpoint already exists) when a GPU is available.
+  - The wav was generated with `tts_cli.py` on CPU from only the first two sentences of the sample translation (full text did not finish in 25 min on CPU). It plays after any letter, not only the sample one. "Sample Agency of Singapore" stays in English in the text, so it may be mispronounced.
+  - The Listen placeholder card in `index.html` is replaced by the real card (`#listen-card`).
+- **Needs from you:** `feature/listen-button` (143617c) overlaps this card and may now conflict; reconcile or drop it. Listen to the clip.
+- **Local-only info:** none.
+
 ### 2026-11-20, darrenlsx (remove key details)
 - **Pushed:** `main` directly. Removed the 重要资料 Key details list from the Summary card (HTML and JS). The card now shows only the ✓/✗ mark, the Chinese summary and the timing line.
 - **State:** 120 tests pass. Checked in the browser with the sample letter: only Chinese text shown, no errors.

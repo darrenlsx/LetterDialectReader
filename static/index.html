@@ -90,9 +90,12 @@
         <p id="summary-timing" class="timing"></p>
       </section>
 
-      <section class="card placeholder">
+      <section class="card" id="listen-card" hidden>
         <h2>🔊 收听 <span class="en">Listen</span></h2>
-        <p>即将推出 · Coming soon</p>
+        <div id="listen-status" class="status" hidden>
+          <span class="spinner"></span> 正在生成语音… <span class="en">Preparing speech…</span>
+        </div>
+        <audio id="listen-audio" controls hidden></audio>
       </section>
     </main>
     </div>
