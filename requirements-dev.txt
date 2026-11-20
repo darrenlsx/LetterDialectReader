@@ -1,0 +1,5 @@
+-r requirements.txt
+
+# Tests (pytest; httpx is needed by FastAPI's TestClient)
+pytest
+httpx

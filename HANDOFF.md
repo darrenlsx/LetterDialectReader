@@ -16,18 +16,69 @@ Read this file first. Add a new entry at the top before every push. Never put se
 ---
 
 ### 2026-11-20, OzzyOw (Hokkien TTS)
-- **Pushed:** branch `feature/text-to-speech` (based on `main` at 6dc8c05): `tts/` module, `POST /api/tts` in `app.py`, `tts_cli.py`, `tts/requirements.txt`, `tests/test_tts.py`, README section.
-- **State:** 25 pytest tests pass with the model stubbed. Also run with the real model on a CPU-only Windows laptop (torch 2.15 CPU, omnivoice 0.2.1): the CLI and `POST /api/tts` return valid 24 kHz mono WAV (audible, not silent) for Hokkien text, and English-only text is rejected with 400. **Nobody has listened to it yet, so whether it sounds like Hokkien is unverified.**
+- **Pushed:** branch `feature/text-to-speech` (merged with `main` at 4b24950): `tts/` module, `POST /api/tts` in `app.py`, `tts_cli.py`, `tts/requirements.txt`, `tests/test_tts.py`, README section.
+- **State:** All 120 pytest tests pass (27 of them for TTS, with the model stubbed). Also run with the real model on a CPU-only Windows laptop (torch 2.15 CPU, omnivoice 0.2.1): the CLI and `POST /api/tts` return valid 24 kHz mono WAV (audible, not silent) for Hokkien text, and English-only text is rejected with 400. **Nobody has listened to it yet, so whether it sounds like Hokkien is unverified.**
   - **Speed on CPU is too slow for the 5-minute target:** about 43 s to speak a 3 s sentence once warm (roughly 13x real time). The first request also downloads the 2.7 GB model (first CLI run took about 3.5 min) and loads it (about 5 s once cached). A spoken summary of 30 s would take about 7 min on CPU, so the demo needs a CUDA GPU, short phrases, or pre-generated audio.
   - Not wired into the UI: `static/` and `public/` have no Listen button yet.
 - **Decisions:**
   - Model is `MERaLiON/MERaLiON-OmniVoice-Hokkien-TTS`. It reads Hokkien in Chinese characters and does not translate, so the translation step (separate branch) must output Hokkien wording, not Mandarin.
   - `synthesise(text)` returns WAV bytes. Input must contain at least one Chinese character and be at most 1000 characters. Errors are `TtsError` with `bad_input`, `unavailable` or `synthesis_failed`; the phone gets generic messages, details go to the server log.
   - TTS dependencies are optional (`tts/requirements.txt`), so the rest of the app runs without torch. WAV is written with the standard library.
-  - `/api/tts` has the cross-origin check but no rate limit or access token yet (the model call is serialised by a lock).
+  - `/api/tts` is registered in `api_guard` (origin check, `ACCESS_TOKEN`, per-IP rate limit `TTS_RATE_LIMIT_MAX`, default 5, body limit 20 KB); the model call is serialised by a lock.
   - The model is under the MERaLiON-3 Public Licence. Not yet read; check before the demo.
 - **Needs from you:** wire translation output into `POST /api/tts` and add the Listen button in the UI. Say which dialect-list and error prompts (e.g. "Photo was blurry") need pre-generated audio.
 - **Local-only info:** none. Optional env vars (names only): `TTS_MODEL`, `TTS_DEVICE`, `TTS_REF_AUDIO`, `TTS_REF_TEXT`.
+
+### 2026-11-20, darrenlsx (landing page)
+- **Pushed:** branch `feature/landing-page`. Landing page with dialect choice, plus a keynote-style demo stage (all in `static/`; no API changes)
+- **State:** Works and was tested in the browser at desktop and phone widths.
+  - **First screen:** large 福建话 / 广东话 / 潮州话 cards. Cantonese and Teochew are disabled ("即将推出 coming soon").
+  - **Picking Hokkien:** ✓ pops, the photo screen slides in (iOS-style push), and the choice is saved.
+  - **换语言:** slides back to the language screen.
+  - **Demo stage:** the phone sits on a dark stage with a headline and 3 feature cards. Screen labels are Chinese first, with English underneath.
+- **Decisions:**
+  - On-screen text is Mandarin-first, per PRODUCT_BRIEF.md.
+  - No audio on the language screen yet (no MERaLion yet).
+  - The pitch text says "seniors who find official letters hard to read or understand", not only those who can't read English.
+- **Needs from you:**
+  - The chosen dialect is in the browser at `localStorage['letterReader.dialect']`; it is currently always `"hokkien"`. Please send it with the summary/speech requests.
+  - `main` (your Python port and summary) is merged into this branch. Your Summary card is kept as is, with Chinese-first labels (摘要, 正在解释…, 重要资料); the Listen card is still a placeholder.
+- **Local-only info:** none
+
+### 2026-11-20, OzzyOw (summary flows into translation in the app)
+- **Pushed:** branch `worktree-test-pipeline`: `feature/ocr-summary` (PR #3) merged on top of the latest `main` (translation function), plus `POST /api/translate` and the UI step. Merged into `main` right after.
+- **State:** photo → OCR → summary → Chinese translation runs automatically on the page, no tap between steps. 93 tests pass (`python -m pytest`), lint clean. Live check on `samples/sample_letter.jpg` through the browser UI: ✓, translation `confident`, 29s from photo.
+- **Decisions:**
+  - `/api/translate` takes `{text}` (the English summary) and returns `{text, confident, missing_details, seconds}`. Same guard as `/api/summary` (origin check, `ACCESS_TOKEN`, 5/min/IP, size cap, generic errors).
+  - If translation is not confident the Chinese card says so and lists the missing numbers; if the call fails the summary stays and the card asks for a retry.
+- **Needs from you:** Hokkien speech is still to do and will take the Chinese text from this card. English names ("Sample Agency of Singapore", "Jane Lim", "NRIC") stay in English in the translation, which a Hokkien voice may misread. Once only, the server process crashed mid-OCR (exit code 5) and worked after a restart; I could not reproduce it.
+- **Local-only info:** a worktree needs its own `.env` (copy from `.env.template`) with `OPENCODE_API_KEY`; the translation uses the same key and model.
+
+### 2026-11-20, OzzyOw (review fixes on `feature/ocr-summary`)
+- **Pushed:** branch `feature/ocr-summary` (PR #3), fixes from a code review, plus `main` (logo) merged in
+- **State:** 64 tests pass (`python -m pytest`), lint clean.
+- **Decisions:**
+  - **Blurry photos:** `ocr/engine.py` has a new `extract_text_with_confidence(path) -> (text, score)`; `extract_text` is unchanged for callers. `/api/ocr` now also returns `confidence` and `readable`. `readable` needs 20+ characters and confidence ≥ 0.9. Calibrated on `samples/sample_letter.jpg`: blur radius 0-3 scored 0.94-0.97 and read correctly; radius 4 scored 0.83 and misread the date as "20 Noventer 2828", so it now gets the cross instead of a wrong summary. **Please re-check the threshold with real phone photos.**
+  - **API guard (middleware) for `/api/ocr` and `/api/summary`:** cross-origin check, optional `ACCESS_TOKEN`, per-IP rate limits (summary 5/min, OCR 10/min), and `Content-Length` required and capped before any body is read.
+  - **Phone UI:** a new photo aborts the previous photo's requests, and late replies are ignored, so two letters can't mix on screen.
+  - `.env` loading now strips inline comments (`RATE_LIMIT_MAX=5  # note` → `5`) and accepts quotes and `export`.
+- **How to run on the phone:** set `ACCESS_TOKEN` in `.env`, run `uvicorn app:app --host 0.0.0.0`, open `http://<your-LAN-IP>:8000/?token=<value>` once on the phone.
+- **Needs from you:** review the `ocr/engine.py` change (new function; scores come from PaddleOCR's `rec_scores`).
+- **Local-only info:** none new.
+
+### 2026-11-20, OzzyOw (summary ported to Python, wired into the OCR app)
+- **Pushed:** branch `feature/ocr-summary` (PR into `main`): photo → OCR → summary in one flow in the Python app
+- **State:**
+  - `summary/` is a Python port of the Node summariser (`from summary import summarise`), same behaviour and tests, standard library only.
+  - `app.py` has `POST /api/summary` (JSON `{text}`), rate-limited per IP, rejects cross-origin POSTs, generic errors to the phone with details in the server log. It loads `.env` itself.
+  - `static/`: after OCR, the Summary card fills in automatically: tick/cross, summary, "please ask family" warning when not confident, key details, total time from photo. OCR text under 20 characters shows a cross and "Photo was blurry. Please take the picture again."
+  - Tests: `python -m pytest` (`tests/`). Lint: `npm run lint` (ESLint for `static/app.js`).
+- **Decisions:**
+  - One runtime: the Node server (`server.js`, `src/`, `public/`, `test/`) is removed; Python is the only app.
+  - Run with `uvicorn app:app --reload`, open http://localhost:8000. For the phone on the LAN add `--host 0.0.0.0` (the summary endpoint is rate-limited; there's no access token any more).
+  - Install with `pip install -r requirements-dev.txt` (adds pytest and httpx for tests).
+- **Needs from you:** review `app.py` and `static/` changes, since they're your files. Speech (MERaLion) and Hokkien output are still to do; the summary is English.
+- **Local-only info:** `.env` needs `OPENCODE_API_KEY` (copy `.env.template`).
 
 ### 2026-11-20, darrenlsx (logo)
 - **Pushed:** branch `feature/logo`: app logo `static/logo.svg` (信 in a speech bubble, blue `#0b5ed7`, same as the main button), shown in the phone header and used as the favicon
@@ -35,6 +86,18 @@ Read this file first. Add a new entry at the top before every push. Never put se
 - **Decisions:** We picked 信 ("letter") because the users read Chinese rather than English. The speech bubble stands for "read aloud to you".
 - **Needs from you:** In the Python port, please serve `static/logo.svg` and use it in the header and as the favicon (`<link rel="icon" type="image/svg+xml" href="/static/logo.svg">`).
 - **Local-only info:** none
+
+### 2026-11-20, OzzyOw (translation function for Hokkien TTS)
+- **Pushed:** `main` (from branch `translation-feature`): `translate/` package and `tests/test_translate.py`
+- **State:** `from translate import translate`; `translate(summary_text)` returns `{text, confident, missing_details}`. `text` is plain spoken-style Chinese for the Hokkien TTS: no pinyin, markdown, brackets or English. 14 tests pass (`python -m pytest tests/test_translate.py`). Live check against `deepseek-v4.1-flash` passed (about 7s, all numbers kept, an injected "ignore previous instructions" line was translated as data, not obeyed). Not wired into `app.py`; no endpoint yet.
+- **Decisions:**
+  - Same model, endpoint and env vars as the summary (`OPENCODE_API_KEY`, optional `LLM_BASE_URL`, `LLM_MODEL`). No new vars. Standard library only.
+  - Call it with `summarise(...)["summary"]`. It does not import the summariser: `main` only has the Node one, and the Python port is on `feature/ocr-summary` (not merged). The HTTP helper is duplicated; dedupe once both are merged.
+  - Output is Simplified Chinese (Singapore) by default; `translate(text, script="traditional")` switches. Both are standard written Chinese, not Hokkien-specific characters, because the TTS engine isn't chosen yet. If it wants Hokkien Hanji or Tâi-lô, change `SYSTEM_PROMPT` in `translate/engine.py`.
+  - Numbers stay as Arabic digits (dates as 2026年4月11日, money as 1,284.50新币). A code check confirms every digit run in the English appears in the Chinese; one retry, then `confident` is False and the missing numbers are listed. The text is never altered after the model returns it.
+  - `confident` False (or `TranslateError`) should become the spoken "try once more" / "ask family" prompt from the brief; that endpoint/UI part is not done.
+- **Needs from you:** which TTS engine and what text form it wants (Simplified, Traditional, Hanji or Tâi-lô, and whether it reads digits correctly in Hokkien). Whoever merges `feature/ocr-summary` and this branch: add `POST /api/translate` (or extend `/api/summary`) in `app.py`.
+- **Local-only info:** `.env` needs `OPENCODE_API_KEY`, same as the summary. Tests use fake model calls and need no key.
 
 ### 2026-11-20, OzzyOw (review fixes)
 - **Pushed:** branch `summarise-oci-generated-text`, fixes from a code review of the summarisation feature

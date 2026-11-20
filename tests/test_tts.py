@@ -98,6 +98,7 @@ def test_empty_audio_is_synthesis_failed(monkeypatch):
 
 @pytest.fixture
 def client(monkeypatch):
+    monkeypatch.setattr(app_module, "tts_limiter", app_module.RateLimiter(100, 60))
     monkeypatch.setattr(app_module, "synthesise", lambda text: b"RIFFfake")
     return TestClient(app_module.app)
 
@@ -120,6 +121,19 @@ def test_endpoint_oversize_body_is_413(client):
     assert client.post("/api/tts", json={"text": "你" * 30_000}).status_code == 413
 
 
+def test_endpoint_rate_limited(client, monkeypatch):
+    monkeypatch.setattr(app_module, "tts_limiter", app_module.RateLimiter(1, 60))
+    assert client.post("/api/tts", json={"text": HOKKIEN}).status_code == 200
+    assert client.post("/api/tts", json={"text": HOKKIEN}).status_code == 429
+
+
+def test_endpoint_needs_token_when_set(client, monkeypatch):
+    monkeypatch.setenv("ACCESS_TOKEN", "s3cret")
+    assert client.post("/api/tts", json={"text": HOKKIEN}).status_code == 401
+    ok = client.post("/api/tts", json={"text": HOKKIEN}, headers={"x-access-token": "s3cret"})
+    assert ok.status_code == 200
+
+
 def test_endpoint_wrong_method_is_405(client):
     assert client.get("/api/tts").status_code == 405
 
@@ -131,9 +145,9 @@ def test_endpoint_cross_origin_is_403_same_origin_ok(client):
     assert ok.status_code == 200
 
 
-def test_endpoint_bad_input_keeps_its_message(monkeypatch):
-    monkeypatch.undo()  # use the real validation, no model needed
-    res = TestClient(app_module.app).post("/api/tts", json={"text": "English only"})
+def test_endpoint_bad_input_keeps_its_message(client, monkeypatch):
+    monkeypatch.setattr(app_module, "synthesise", synthesise)  # real validation, no model needed
+    res = client.post("/api/tts", json={"text": "English only"})
     assert res.status_code == 400
     assert res.json()["detail"] == "Text must be Hokkien written in Chinese characters."
 
