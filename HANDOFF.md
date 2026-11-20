@@ -15,6 +15,22 @@ Read this file first. Add a new entry at the top before every push. Never put se
 
 ---
 
+### 2026-11-20, darrenlsx (landing page)
+- **Pushed:** branch `feature/landing-page`. Landing page with dialect choice, plus a keynote-style demo stage (all in `static/`; no API changes)
+- **State:** Works and was tested in the browser at desktop and phone widths.
+  - **First screen:** large 福建话 / 广东话 / 潮州话 cards. Cantonese and Teochew are disabled ("即将推出 coming soon").
+  - **Picking Hokkien:** ✓ pops, the photo screen slides in (iOS-style push), and the choice is saved.
+  - **换语言:** slides back to the language screen.
+  - **Demo stage:** the phone sits on a dark stage with a headline and 3 feature cards. Screen labels are Chinese first, with English underneath.
+- **Decisions:**
+  - On-screen text is Mandarin-first, per PRODUCT_BRIEF.md.
+  - No audio on the language screen yet (no MERaLion yet).
+  - The pitch text says "seniors who find official letters hard to read or understand", not only those who can't read English.
+- **Needs from you:**
+  - The chosen dialect is in the browser at `localStorage['letterReader.dialect']`; it is currently always `"hokkien"`. Please send it with the summary/speech requests.
+  - `main` (your Python port and summary) is merged into this branch. Your Summary card is kept as is, with Chinese-first labels (摘要, 正在解释…, 重要资料); the Listen card is still a placeholder.
+- **Local-only info:** none
+
 ### 2026-11-20, OzzyOw (summary flows into translation in the app)
 - **Pushed:** branch `worktree-test-pipeline`: `feature/ocr-summary` (PR #3) merged on top of the latest `main` (translation function), plus `POST /api/translate` and the UI step. Merged into `main` right after.
 - **State:** photo → OCR → summary → Chinese translation runs automatically on the page, no tap between steps. 93 tests pass (`python -m pytest`), lint clean. Live check on `samples/sample_letter.jpg` through the browser UI: ✓, translation `confident`, 29s from photo.

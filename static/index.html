@@ -1,58 +1,95 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-Hans">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Letter Reader</title>
+  <title>读信助手 Letter Reader</title>
   <link rel="icon" type="image/svg+xml" href="/static/logo.svg">
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
+ <div class="stage">
+  <section class="pitch">
+    <p class="eyebrow">读信助手 · Letter Reader</p>
+    <h1 class="headline">Every letter,<br><span class="glow-text">read aloud.</span></h1>
+    <p class="lede">For seniors who find official letters hard to read or understand. Snap a government letter and hear what it means in simple words, in the dialect they speak.</p>
+    <ol class="features">
+      <li><span class="num">1</span><div><strong>Snap a photo</strong><span>One big button. No typing.</span></div></li>
+      <li><span class="num">2</span><div><strong>Read in about 3 seconds</strong><span>PaddleOCR picks out every word.</span></div></li>
+      <li><span class="num">3</span><div><strong>Hear it in dialect</strong><span>福建话 first. 广东话 and 潮州话 coming soon.</span></div></li>
+    </ol>
+  </section>
+
+  <div class="device-wrap">
+  <div class="halo" aria-hidden="true"></div>
   <div class="phone">
-    <div class="notch"></div>
-    <main class="screen">
-      <header>
+    <span class="btn btn-action" aria-hidden="true"></span>
+    <span class="btn btn-vol-up" aria-hidden="true"></span>
+    <span class="btn btn-vol-down" aria-hidden="true"></span>
+    <span class="btn btn-power" aria-hidden="true"></span>
+    <div class="island"></div>
+    <div class="statusbar" aria-hidden="true"><span>9:41</span><span class="sb-icons"><i class="sig"></i><i class="bat"></i></span></div>
+
+    <div class="viewport">
+    <!-- Screen 1: landing / dialect choice -->
+    <main class="screen" id="screen-language">
+      <section class="hero">
+        <img class="hero-logo" src="/static/logo.svg" alt="">
+        <h1>读信助手</h1>
+        <p class="en">Letter Reader</p>
+        <p class="welcome">拍照，我们帮您读信</p>
+        <p class="en">Take a photo, we'll read the letter for you</p>
+      </section>
+
+      <h2 class="prompt">请选择您的方言<span class="en">Please choose your dialect</span></h2>
+      <div class="dialects" id="dialect-list"></div>
+    </main>
+
+    <!-- Screen 2: photo + results -->
+    <main class="screen" id="screen-photo" hidden>
+      <header class="topbar">
         <div class="brand">
           <img class="logo" src="/static/logo.svg" alt="">
           <div>
-            <h1>Letter Reader</h1>
-            <p class="tagline">Take a photo of your letter</p>
+            <h1>读信助手</h1>
+            <span class="chip" id="dialect-chip"></span>
           </div>
         </div>
+        <button class="change-lang" id="change-lang" type="button">换语言<span class="en">Change</span></button>
       </header>
 
-      <label class="big-button" for="photo">📷 Take / Upload photo</label>
+      <label class="big-button" for="photo">📷 拍照<span class="en">Take / upload photo</span></label>
       <input id="photo" type="file" accept="image/png,image/jpeg" capture="environment" hidden>
 
       <img id="preview" alt="Your letter" hidden>
 
       <div id="status" class="status" hidden>
-        <span class="spinner"></span> Reading…
+        <span class="spinner"></span> 正在读信… <span class="en">Reading…</span>
       </div>
       <div id="error" class="error" hidden></div>
 
       <section class="card" id="text-card" hidden>
-        <h2>Letter text</h2>
+        <h2>信件内容 <span class="en">Letter text</span></h2>
         <div id="text" class="text-box"></div>
         <p id="timing" class="timing"></p>
       </section>
 
       <section class="card" id="summary-card" hidden>
-        <h2><span id="mark" class="mark" aria-hidden="true"></span> Summary</h2>
+        <h2><span id="mark" class="mark" aria-hidden="true"></span> 摘要 <span class="en">Summary</span></h2>
         <div id="summary-status" class="status" hidden>
-          <span class="spinner"></span> Explaining…
+          <span class="spinner"></span> 正在解释… <span class="en">Explaining…</span>
         </div>
         <p id="summary" class="summary"></p>
         <div id="warn" class="warn" hidden></div>
-        <h3 id="details-heading" hidden>Key details</h3>
+        <h3 id="details-heading" hidden>重要资料 <span class="en" style="display:inline">Key details</span></h3>
         <ul id="details" class="details"></ul>
         <p id="summary-timing" class="timing"></p>
       </section>
 
       <section class="card" id="translation-card" hidden>
-        <h2>中文 Chinese</h2>
+        <h2>中文 <span class="en">Chinese</span></h2>
         <div id="translation-status" class="status" hidden>
-          <span class="spinner"></span> Translating…
+          <span class="spinner"></span> 正在翻译… <span class="en">Translating…</span>
         </div>
         <p id="translation" class="summary" lang="zh"></p>
         <div id="translation-warn" class="warn" hidden></div>
@@ -60,11 +97,14 @@
       </section>
 
       <section class="card placeholder">
-        <h2>🔊 Listen</h2>
-        <p>Coming soon: hear the explanation (MERaLion).</p>
+        <h2>🔊 收听 <span class="en">Listen</span></h2>
+        <p>即将推出 · Coming soon</p>
       </section>
     </main>
+    </div>
   </div>
+  </div>
+ </div>
   <script src="/static/app.js"></script>
 </body>
 </html>
