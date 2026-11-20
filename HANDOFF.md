@@ -31,6 +31,15 @@ Read this file first. Add a new entry at the top before every push. Never put se
   - `main` (your Python port and summary) is merged into this branch. Your Summary card is kept as is, with Chinese-first labels (摘要, 正在解释…, 重要资料); the Listen card is still a placeholder.
 - **Local-only info:** none
 
+### 2026-11-20, OzzyOw (summary flows into translation in the app)
+- **Pushed:** branch `worktree-test-pipeline`: `feature/ocr-summary` (PR #3) merged on top of the latest `main` (translation function), plus `POST /api/translate` and the UI step. Merged into `main` right after.
+- **State:** photo → OCR → summary → Chinese translation runs automatically on the page, no tap between steps. 93 tests pass (`python -m pytest`), lint clean. Live check on `samples/sample_letter.jpg` through the browser UI: ✓, translation `confident`, 29s from photo.
+- **Decisions:**
+  - `/api/translate` takes `{text}` (the English summary) and returns `{text, confident, missing_details, seconds}`. Same guard as `/api/summary` (origin check, `ACCESS_TOKEN`, 5/min/IP, size cap, generic errors).
+  - If translation is not confident the Chinese card says so and lists the missing numbers; if the call fails the summary stays and the card asks for a retry.
+- **Needs from you:** Hokkien speech is still to do and will take the Chinese text from this card. English names ("Sample Agency of Singapore", "Jane Lim", "NRIC") stay in English in the translation, which a Hokkien voice may misread. Once only, the server process crashed mid-OCR (exit code 5) and worked after a restart; I could not reproduce it.
+- **Local-only info:** a worktree needs its own `.env` (copy from `.env.template`) with `OPENCODE_API_KEY`; the translation uses the same key and model.
+
 ### 2026-11-20, OzzyOw (review fixes on `feature/ocr-summary`)
 - **Pushed:** branch `feature/ocr-summary` (PR #3), fixes from a code review, plus `main` (logo) merged in
 - **State:** 64 tests pass (`python -m pytest`), lint clean.

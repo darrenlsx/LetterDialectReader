@@ -120,6 +120,12 @@ const detailsHeading = document.getElementById("details-heading");
 const detailsEl = document.getElementById("details");
 const summaryTiming = document.getElementById("summary-timing");
 
+const translationCard = document.getElementById("translation-card");
+const translationStatus = document.getElementById("translation-status");
+const translationEl = document.getElementById("translation");
+const translationWarn = document.getElementById("translation-warn");
+const translationTiming = document.getElementById("translation-timing");
+
 const BLURRY_MESSAGE = "Photo was blurry. Please take the picture again.";
 
 function showError(message) {
@@ -127,7 +133,17 @@ function showError(message) {
   errorEl.hidden = false;
 }
 
+function resetTranslation() {
+  translationCard.hidden = true;
+  translationStatus.hidden = true;
+  translationEl.textContent = "";
+  translationWarn.hidden = true;
+  translationWarn.textContent = "";
+  translationTiming.textContent = "";
+}
+
 function resetSummary() {
+  resetTranslation();
   summaryCard.hidden = true;
   markEl.textContent = "";
   markEl.className = "mark";
@@ -185,6 +201,7 @@ const isCurrent = (run) => run === currentRun;
 async function summarise(text, startedAt, run, signal) {
   summaryCard.hidden = false;
   summaryStatus.hidden = false;
+  let summarised = null;
   try {
     const res = await fetch("/api/summary", {
       method: "POST",
@@ -196,9 +213,42 @@ async function summarise(text, startedAt, run, signal) {
     if (!isCurrent(run)) return;
     if (!res.ok) throw new Error(data.detail || "Something went wrong. Please try again.");
     renderSummary(data, (performance.now() - startedAt) / 1000);
+    summarised = data.summary;
   } catch (err) {
     if (!isCurrent(run) || err.name === "AbortError") return;
     showCross(`${err.message} Please try once more.`);
+  }
+  // The summary flows straight into translation; no tap needed.
+  if (summarised) await translateSummary(summarised, startedAt, run, signal);
+}
+
+async function translateSummary(text, startedAt, run, signal) {
+  translationCard.hidden = false;
+  translationStatus.hidden = false;
+  try {
+    const res = await fetch("/api/translate", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ text }),
+      signal,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!isCurrent(run)) return;
+    if (!res.ok) throw new Error(data.detail || "Something went wrong. Please try again.");
+    translationStatus.hidden = true;
+    translationEl.textContent = data.text;
+    // Not confident: do not present the translation as reliable.
+    const missing = data.missing_details || [];
+    translationWarn.textContent = data.confident
+      ? ""
+      : `I could not translate this confidently${missing.length ? ` (missing: ${missing.join(", ")})` : ""}. Please ask family to check it.`;
+    translationWarn.hidden = data.confident;
+    translationTiming.textContent = `Translated in ${data.seconds}s · ${((performance.now() - startedAt) / 1000).toFixed(1)}s from photo`;
+  } catch (err) {
+    if (!isCurrent(run) || err.name === "AbortError") return;
+    translationStatus.hidden = true;
+    translationWarn.textContent = `${err.message} Please try once more.`;
+    translationWarn.hidden = false;
   }
 }
 
