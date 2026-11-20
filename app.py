@@ -3,7 +3,8 @@
 Run:  uvicorn app:app --reload   then open http://localhost:8000
 
 Env (from the shell or .env; all optional except OPENCODE_API_KEY):
-  OPENCODE_API_KEY      key for the summary model (POST /api/summary)
+  OPENCODE_API_KEY      key for the summary and translation model (POST /api/summary
+                        and POST /api/translate)
   LLM_BASE_URL          default https://opencode.ai/inference/go/openai/v1
   LLM_MODEL             default deepseek-v4.1-flash
   ACCESS_TOKEN          if set, /api/* needs it: header x-access-token, ?token=,
@@ -32,6 +33,7 @@ from fastapi.staticfiles import StaticFiles
 
 from ocr import SUPPORTED_EXTENSIONS, UnsupportedImageError, extract_text_with_confidence
 from summary import SummariseError, load_dotenv, summarise
+from translate import TranslateError, translate
 
 load_dotenv()
 log = logging.getLogger("letter_reader")
@@ -55,6 +57,12 @@ SUMMARY_ERRORS = {
     "bad_input": (400, None),
     "no_key": (500, "The summary service is not available right now."),
     "model_failed": (502, "The summary service is not available right now."),
+}
+
+TRANSLATE_ERRORS = {
+    "bad_input": (400, None),
+    "no_key": (500, "The translation service is not available right now."),
+    "model_failed": (502, "The translation service is not available right now."),
 }
 
 app = FastAPI(title="LetterDialectReader")
@@ -130,12 +138,14 @@ class RateLimiter:
 
 _WINDOW_S = float(os.environ.get("RATE_LIMIT_WINDOW_S", "60"))
 summary_limiter = RateLimiter(int(os.environ.get("RATE_LIMIT_MAX", "5")), _WINDOW_S)
+translate_limiter = RateLimiter(int(os.environ.get("RATE_LIMIT_MAX", "5")), _WINDOW_S)
 ocr_limiter = RateLimiter(int(os.environ.get("OCR_RATE_LIMIT_MAX", "10")), _WINDOW_S)
 
 # POST routes guarded by api_guard: path -> (limiter name, max body bytes).
 # The multipart allowance covers form boundaries/headers around the photo.
 API_ROUTES = {
     "/api/summary": ("summary_limiter", MAX_SUMMARY_BODY_BYTES),
+    "/api/translate": ("translate_limiter", MAX_SUMMARY_BODY_BYTES),
     "/api/ocr": ("ocr_limiter", MAX_UPLOAD_BYTES + 64 * 1024),
 }
 
@@ -210,6 +220,34 @@ async def summary_endpoint(request: Request):
         raise HTTPException(status, public) from None
     except Exception:
         log.exception("summary crashed")
+        raise HTTPException(500, "Something went wrong. Please try again.") from None
+    result["seconds"] = round(time.perf_counter() - start, 1)
+    return result
+
+
+@app.post("/api/translate")
+async def translate_endpoint(request: Request):
+    """Translate the English summary into Chinese for the Hokkien voice step."""
+    body = await request.body()
+    if len(body) > MAX_SUMMARY_BODY_BYTES:
+        raise HTTPException(413, "That text is too long.")
+    try:
+        text = json.loads(body)["text"]
+    except (ValueError, KeyError, TypeError):
+        raise HTTPException(400, 'Body must be JSON: {"text": string}') from None
+
+    start = time.perf_counter()
+    try:
+        result = await run_in_threadpool(translate, text)
+    except TranslateError as exc:
+        status, public = TRANSLATE_ERRORS.get(exc.code, (500, None))
+        if exc.code != "bad_input":
+            log.error("translate failed: %s | %s", exc.code, exc.detail, exc_info=exc)
+        if public is None:
+            public = exc.message if exc.code == "bad_input" else "Something went wrong. Please try again."
+        raise HTTPException(status, public) from None
+    except Exception:
+        log.exception("translate crashed")
         raise HTTPException(500, "Something went wrong. Please try again.") from None
     result["seconds"] = round(time.perf_counter() - start, 1)
     return result
