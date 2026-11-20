@@ -15,6 +15,20 @@ Read this file first. Add a new entry at the top before every push. Never put se
 
 ---
 
+### 2026-11-20, OzzyOw (summary ported to Python, wired into the OCR app)
+- **Pushed:** branch `feature/ocr-summary` (PR into `main`): photo → OCR → summary in one flow in the Python app
+- **State:**
+  - `summary/` is a Python port of the Node summariser (`from summary import summarise`), same behaviour and tests, standard library only.
+  - `app.py` has `POST /api/summary` (JSON `{text}`), rate-limited per IP, rejects cross-origin POSTs, generic errors to the phone with details in the server log. It loads `.env` itself.
+  - `static/`: after OCR, the Summary card fills in automatically: tick/cross, summary, "please ask family" warning when not confident, key details, total time from photo. OCR text under 20 characters shows a cross and "Photo was blurry. Please take the picture again."
+  - Tests: `python -m pytest` (`tests/`). Lint: `npm run lint` (ESLint for `static/app.js`).
+- **Decisions:**
+  - One runtime: the Node server (`server.js`, `src/`, `public/`, `test/`) is removed; Python is the only app.
+  - Run with `uvicorn app:app --reload`, open http://localhost:8000. For the phone on the LAN add `--host 0.0.0.0` (the summary endpoint is rate-limited; there's no access token any more).
+  - Install with `pip install -r requirements-dev.txt` (adds pytest and httpx for tests).
+- **Needs from you:** review `app.py` and `static/` changes, since they're your files. Speech (MERaLion) and Hokkien output are still to do; the summary is English.
+- **Local-only info:** `.env` needs `OPENCODE_API_KEY` (copy `.env.template`).
+
 ### 2026-11-20, OzzyOw (review fixes)
 - **Pushed:** branch `summarise-oci-generated-text`, fixes from a code review of the summarisation feature
 - **State:** 49 tests pass (`npm test`). Live check against `deepseek-v4.1-flash` passed, including a letter with an injected "ignore previous instructions" line (flagged as suspicious, `confident` false).
