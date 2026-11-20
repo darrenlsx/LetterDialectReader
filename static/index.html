@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Letter Reader</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="phone">
+    <div class="notch"></div>
+    <main class="screen">
+      <header>
+        <h1>Letter Reader</h1>
+        <p class="tagline">Take a photo of your letter</p>
+      </header>
+
+      <label class="big-button" for="photo">📷 Take / Upload photo</label>
+      <input id="photo" type="file" accept="image/png,image/jpeg" capture="environment" hidden>
+
+      <img id="preview" alt="Your letter" hidden>
+
+      <div id="status" class="status" hidden>
+        <span class="spinner"></span> Reading…
+      </div>
+      <div id="error" class="error" hidden></div>
+
+      <section class="card" id="text-card" hidden>
+        <h2>Letter text</h2>
+        <div id="text" class="text-box"></div>
+        <p id="timing" class="timing"></p>
+      </section>
+
+      <section class="card placeholder">
+        <h2>Summary</h2>
+        <p>Coming soon: a simple explanation of the letter.</p>
+      </section>
+
+      <section class="card placeholder">
+        <h2>🔊 Listen</h2>
+        <p>Coming soon: hear the explanation (MERaLion).</p>
+      </section>
+    </main>
+  </div>
+  <script src="/static/app.js"></script>
+</body>
+</html>
