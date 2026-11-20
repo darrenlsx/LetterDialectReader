@@ -123,6 +123,34 @@ const translationStatus = document.getElementById("translation-status");
 const translationEl = document.getElementById("translation");
 const translationWarn = document.getElementById("translation-warn");
 
+// Listen card. TTS is simulated for now: after translation we wait a few seconds,
+// then play a pre-generated Hokkien recording. Swap speak() for a /api/tts call later.
+const listenStatus = document.getElementById("listen-status");
+const listenAudio = document.getElementById("listen-audio");
+const listenCard = document.getElementById("listen-card");
+const SIMULATED_TTS_MS = 5000;
+const SAMPLE_TTS_URL = "/static/sample_tts.wav";
+
+function resetListen() {
+  listenCard.hidden = true;
+  listenStatus.hidden = true;
+  listenAudio.pause();
+  listenAudio.hidden = true;
+  listenAudio.removeAttribute("src");
+}
+
+async function speak(run) {
+  listenCard.hidden = false;
+  listenStatus.hidden = false;
+  await new Promise((resolve) => setTimeout(resolve, SIMULATED_TTS_MS));
+  if (!isCurrent(run)) return;
+  listenStatus.hidden = true;
+  listenAudio.src = SAMPLE_TTS_URL;
+  listenAudio.hidden = false;
+  // Browsers may block autoplay; the visible controls let the user tap play.
+  listenAudio.play().catch(() => {});
+}
+
 const BLURRY_MESSAGE = "Photo was blurry. Please take the picture again.";
 
 function showError(message) {
@@ -139,6 +167,7 @@ function resetTranslation() {
 
 function resetSummary() {
   resetTranslation();
+  resetListen();
   summaryCard.hidden = true;
   markEl.textContent = "";
   markEl.className = "mark";
@@ -226,6 +255,7 @@ async function translateSummary(text, startedAt, run, signal) {
       : `I could not translate this confidently${missing.length ? ` (missing: ${missing.join(", ")})` : ""}. Please ask family to check it.`;
     translationWarn.hidden = data.confident;
     summaryTiming.textContent = `${explained} · Translated in ${data.seconds}s · ${((performance.now() - startedAt) / 1000).toFixed(1)}s from photo`;
+    await speak(run);
   } catch (err) {
     if (!isCurrent(run) || err.name === "AbortError") return;
     translationStatus.hidden = true;

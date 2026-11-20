@@ -364,3 +364,5 @@ body {
 .tag { font-size: 12px; text-transform: uppercase; color: #666; margin-right: 6px; }
 .placeholder { color: #666; font-size: 18px; }
 .placeholder p { margin: 0; }
+#listen-audio { width: 100%; margin-top: 12px; }
+#listen-audio[hidden], #listen-card[hidden] { display: none; }
