@@ -15,6 +15,13 @@ Read this file first. Add a new entry at the top before every push. Never put se
 
 ---
 
+### 2026-11-20, darrenlsx
+- **Pushed:** branch `feature/ocr` (PR #1 into `main`): OCR module, CLI and a phone-style web demo
+- **State:** Working and tested on a Windows laptop CPU. `from ocr import extract_text` takes a PNG/JPEG path and returns plain text in reading order, in about 3s per letter once the model has loaded. Web demo: `uvicorn app:app --reload`, then open http://localhost:8000. `POST /api/ocr` returns `{text, seconds}`. The Summary and Listen sections in the UI are placeholders.
+- **Decisions:** Classic PaddleOCR (PP-OCRv5 mobile) instead of PaddleOCR-VL, which is too slow without a GPU. `paddlepaddle` is pinned to 3.2.2 because 3.3 crashes on CPU (oneDNN). There's no blur check yet; the brief's tick/cross step is still to do.
+- **Needs from you:** For the summary step, call `extract_text(...)` and pass its string to `deepseek-v4.1-flash`. The "OCI" step in your entry is this OCR step, so the summary model can be text-only. Suggest adding `POST /api/summary` to `app.py` and filling in the Summary section in `static/`.
+- **Local-only info:** No env vars are needed for OCR. On first run, about 20 MB of models are downloaded to `~/.paddlex`. The test image is `samples/sample_letter.jpg` (a fake letter).
+
 ### 2026-11-20, OzzyOw
 - **Pushed:** `main` (`.env.template`, `.gitignore`); branch `summarise-oci-generated-text` created
 - **State:** branch `summarise-oci-generated-text` is for building the summarisation function. No code yet.
