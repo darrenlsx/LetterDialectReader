@@ -33,13 +33,102 @@ def fake(monkeypatch):
     return model
 
 
-def test_synthesise_returns_wav_and_asks_for_hokkien(fake):
+def test_synthesise_returns_wav_and_asks_for_hokkien(fake, monkeypatch):
+    monkeypatch.delenv("TTS_NUM_STEP", raising=False)
     data = synthesise(HOKKIEN)
     with wave.open(io.BytesIO(data)) as w:
         assert w.getframerate() == 24_000
         assert w.getnchannels() == 1
         assert w.getnframes() == 2400
-    assert fake.calls == [{"text": HOKKIEN, "language": "nan"}]
+    assert fake.calls == [{"text": HOKKIEN, "language": "nan", "num_step": engine.DEFAULT_NUM_STEP}]
+
+
+# --- preload, reference voice, startup ------------------------------------------
+
+def test_preload_loads_once_and_returns_true(monkeypatch):
+    calls = []
+    monkeypatch.setattr(engine, "_load_model", lambda: calls.append(1) or "MODEL")
+    assert engine.preload() is True
+    assert calls == [1]
+
+
+@pytest.mark.parametrize("error", [
+    TtsError("unavailable", "x", detail="TTS dependencies missing: pip install -r tts/requirements.txt"),
+    TtsError("unavailable", "x", detail="model load failed: OSError()"),
+    RuntimeError("boom"),
+])
+def test_preload_never_raises(monkeypatch, error):
+    def fail():
+        raise error
+
+    monkeypatch.setattr(engine, "_load_model", fail)
+    assert engine.preload() is False
+
+
+def test_no_reference_voice_by_default(monkeypatch):
+    monkeypatch.delenv("TTS_REF_AUDIO", raising=False)
+    assert engine._reference_voice() == (None, None)
+
+
+def test_bundled_reference_voice_when_asked(monkeypatch, tmp_path):
+    audio = tmp_path / "reference_audio.wav"
+    text = tmp_path / "reference_text.txt"
+    audio.write_bytes(b"RIFF")
+    text.write_text("  OK，无问题。\n", encoding="utf-8")
+    files = {engine.REF_AUDIO_FILE: str(audio), engine.REF_TEXT_FILE: str(text)}
+
+    import huggingface_hub
+
+    def fake_download(repo, filename, local_files_only):
+        assert local_files_only is True  # never downloads at request time
+        return files[filename]
+
+    monkeypatch.setattr(huggingface_hub, "hf_hub_download", fake_download)
+    monkeypatch.setenv("TTS_REF_AUDIO", "bundled")
+    assert engine._reference_voice() == (str(audio), "OK，无问题。")
+
+
+def test_reference_voice_can_be_turned_off(monkeypatch):
+    monkeypatch.setenv("TTS_REF_AUDIO", "none")
+    assert engine._reference_voice() == (None, None)
+
+
+def test_custom_reference_voice_needs_its_transcript(monkeypatch):
+    monkeypatch.setenv("TTS_REF_AUDIO", "my_voice.wav")
+    monkeypatch.delenv("TTS_REF_TEXT", raising=False)
+    with pytest.raises(TtsError):
+        engine._reference_voice()
+    monkeypatch.setenv("TTS_REF_TEXT", "我的声")
+    assert engine._reference_voice() == ("my_voice.wav", "我的声")
+
+
+def test_missing_bundled_reference_falls_back_to_default_voice(monkeypatch):
+    import huggingface_hub
+
+    def not_cached(*args, **kwargs):
+        raise FileNotFoundError("not in cache")
+
+    monkeypatch.setattr(huggingface_hub, "hf_hub_download", not_cached)
+    monkeypatch.setenv("TTS_REF_AUDIO", "bundled")
+    assert engine._reference_voice() == (None, None)
+
+
+def test_startup_preload_can_be_turned_off(monkeypatch):
+    started = []
+    monkeypatch.setattr(app_module, "preload", lambda: started.append(1))
+    monkeypatch.setenv("TTS_PRELOAD", "0")
+    assert app_module.start_voice_preload() is None
+    monkeypatch.setenv("TTS_PRELOAD", "1")
+    thread = app_module.start_voice_preload()
+    thread.join(5)
+    assert started == [1]
+
+
+@pytest.mark.parametrize("value, expected", [("16", 16), ("32", 32), ("0", 1), ("500", 64), ("abc", 10), ("", 10)])
+def test_num_step_comes_from_env_and_is_clamped(fake, monkeypatch, value, expected):
+    monkeypatch.setenv("TTS_NUM_STEP", value)
+    synthesise(HOKKIEN)
+    assert fake.calls[0]["num_step"] == expected
 
 
 def test_voice_clone_prompt_is_passed_when_set(fake, monkeypatch):

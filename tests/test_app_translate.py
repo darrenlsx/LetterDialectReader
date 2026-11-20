@@ -28,7 +28,40 @@ def client(monkeypatch):
     monkeypatch.setattr(app_module, "extract_text_with_confidence", lambda path: (LETTER, 0.97))
     monkeypatch.setattr(app_module, "summarise", lambda text: dict(SUMMARY))
     monkeypatch.setattr(app_module, "translate", lambda text: dict(TRANSLATION))
+    monkeypatch.setattr(app_module, "to_hokkien", lambda text: dict(HOKKIEN))
     return TestClient(app_module.app)
+
+
+HOKKIEN = {"text": "请佇2026年3月3日以前纳86.40箍。", "confident": True, "missing_details": []}
+
+
+def test_translation_includes_hokkien_made_from_the_chinese(client, monkeypatch):
+    seen = {}
+
+    def fake_to_hokkien(text):
+        seen["to_hokkien"] = text
+        return dict(HOKKIEN)
+
+    monkeypatch.setattr(app_module, "to_hokkien", fake_to_hokkien)
+    r = client.post("/api/translate", json={"text": SUMMARY["summary"]})
+    assert r.status_code == 200
+    body = r.json()
+    assert seen["to_hokkien"] == TRANSLATION["text"]  # rewrite of the Chinese, not the English
+    assert body["text"] == TRANSLATION["text"]
+    assert body["hokkien"] == HOKKIEN["text"] and body["hokkien_confident"] is True
+
+
+def test_hokkien_failure_keeps_the_chinese(client, monkeypatch, caplog):
+    def fail(text):
+        raise TranslateError("model_failed", "x", detail="upstream 502")
+
+    monkeypatch.setattr(app_module, "to_hokkien", fail)
+    r = client.post("/api/translate", json={"text": SUMMARY["summary"]})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["text"] == TRANSLATION["text"]
+    assert body["hokkien"] is None and body["hokkien_confident"] is False
+    assert "hokkien rewrite failed" in caplog.text
 
 
 def test_photo_to_summary_to_translation(client, monkeypatch):

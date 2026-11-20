@@ -123,15 +123,94 @@ const translationStatus = document.getElementById("translation-status");
 const translationEl = document.getElementById("translation");
 const translationWarn = document.getElementById("translation-warn");
 
-// Listen card: the real Hokkien voice from POST /api/tts (slow on CPU), played with a big
-// Play button. static/sample_tts.wav is kept in the repo but no longer used here.
+// Listen card: the real Hokkien voice from POST /api/tts, made sentence chunk by chunk
+// (slow on CPU). Play becomes available once enough audio is ready that the rest will be
+// made before playback reaches it, so playback runs without long gaps.
+// static/sample_tts.wav is kept in the repo but no longer used here.
 const listenCard = document.getElementById("listen-card");
 const listenStatus = document.getElementById("listen-status");
+const listenProgress = document.getElementById("listen-progress");
 const playBtn = document.getElementById("play");
 const player = document.getElementById("player");
 const listenWarn = document.getElementById("listen-warn");
 const listenTiming = document.getElementById("listen-timing");
-let audioUrl = null;
+
+// Roughly one sentence per chunk: a small last chunk lets playback start earlier.
+const CHUNK_MIN_CHARS = 12;
+const CHUNK_MAX_CHARS = 40;
+const SAFETY_MARGIN = 1.15;
+
+let voice = newVoice();
+
+function newVoice() {
+  return {
+    chunks: [], // [{ url, seconds }]
+    total: 0, // number of chunks expected
+    charsTotal: 0,
+    charsDone: 0,
+    genSeconds: 0, // time spent making the chunks so far
+    audioSeconds: 0, // length of the audio made so far
+    playable: false,
+    done: false,
+    playing: false, // the user wants it to play
+    waiting: false, // playback reached a chunk that is not made yet
+    index: 0, // chunk being played
+  };
+}
+
+// Split after 。！？ and join neighbouring sentences into chunks of about 25-60 characters.
+function splitForSpeech(text) {
+  const sentences = (text.match(/[^。！？!?]+[。！？!?]*/g) || []).map((s) => s.trim()).filter(Boolean);
+  const chunks = [];
+  let current = "";
+  for (const s of sentences) {
+    if (current && (current.length >= CHUNK_MIN_CHARS || current.length + s.length > CHUNK_MAX_CHARS)) {
+      chunks.push(current);
+      current = "";
+    }
+    current += s;
+  }
+  if (current) chunks.push(current);
+  return chunks;
+}
+
+// Length of a 16-bit PCM WAV (as written by tts/engine.py) from its header.
+async function wavSeconds(blob) {
+  const view = new DataView(await blob.slice(0, 44).arrayBuffer());
+  const rate = view.getUint32(24, true);
+  const channels = view.getUint16(22, true);
+  const bytes = view.getUint32(40, true);
+  return rate && channels ? bytes / (rate * channels * 2) : 0;
+}
+
+// Safe to start: the audio already made lasts at least as long as making the rest will take.
+function safeToStart(v) {
+  if (v.done) return true;
+  if (!v.audioSeconds || !v.charsDone) return false;
+  const speed = v.genSeconds / v.audioSeconds; // seconds of work per second of audio
+  const remainingAudio = (v.charsTotal - v.charsDone) * (v.audioSeconds / v.charsDone);
+  return v.audioSeconds >= speed * remainingAudio * SAFETY_MARGIN;
+}
+
+function playChunk(i) {
+  if (i >= voice.chunks.length) {
+    if (voice.done) {
+      // Finished: the next tap starts again from the beginning.
+      voice.playing = false;
+      voice.index = 0;
+      setPlaying(false);
+    } else {
+      voice.waiting = true;
+      listenProgress.textContent = "稍等… Just a moment…";
+      listenStatus.hidden = false;
+    }
+    return;
+  }
+  voice.index = i;
+  voice.waiting = false;
+  player.src = voice.chunks[i].url;
+  player.play().catch(() => {});
+}
 
 const BLURRY_MESSAGE = "Photo was blurry. Please take the picture again.";
 
@@ -143,8 +222,8 @@ function showError(message) {
 function resetListen() {
   player.pause();
   player.removeAttribute("src");
-  if (audioUrl) URL.revokeObjectURL(audioUrl);
-  audioUrl = null;
+  for (const c of voice.chunks) URL.revokeObjectURL(c.url);
+  voice = newVoice();
   listenCard.hidden = true;
   listenStatus.hidden = true;
   playBtn.hidden = true;
@@ -162,13 +241,22 @@ function setPlaying(playing) {
 }
 
 playBtn.addEventListener("click", () => {
-  if (!audioUrl) return;
-  if (player.paused) player.play().catch(() => {});
-  else player.pause();
+  if (!voice.playable) return;
+  if (voice.playing) {
+    voice.playing = false;
+    player.pause();
+    setPlaying(false);
+    return;
+  }
+  voice.playing = true;
+  setPlaying(true);
+  if (player.getAttribute("src") && !player.ended) player.play().catch(() => {});
+  else playChunk(voice.index);
 });
-player.addEventListener("play", () => setPlaying(true));
-player.addEventListener("pause", () => setPlaying(false));
-player.addEventListener("ended", () => setPlaying(false));
+// Chunks play back to back: the next one starts as soon as the current one ends.
+player.addEventListener("ended", () => {
+  if (voice.playing) playChunk(voice.index + 1);
+});
 
 function resetTranslation() {
   translationStatus.hidden = true;
@@ -268,7 +356,9 @@ async function translateSummary(text, startedAt, run, signal) {
       : `I could not translate this confidently${missing.length ? ` (missing: ${missing.join(", ")})` : ""}. Please ask family to check it.`;
     translationWarn.hidden = data.confident;
     summaryTiming.textContent = `${explained} · Translated in ${data.seconds}s · ${((performance.now() - startedAt) / 1000).toFixed(1)}s from photo`;
-    translated = data.text;
+    // The voice reads the Hokkien-wording version (never shown on screen);
+    // the Chinese is the fallback if the Hokkien rewrite failed.
+    translated = data.hokkien || data.text;
   } catch (err) {
     if (!isCurrent(run) || err.name === "AbortError") return;
     translationStatus.hidden = true;
@@ -280,34 +370,67 @@ async function translateSummary(text, startedAt, run, signal) {
 }
 
 async function speak(text, startedAt, run, signal) {
+  const parts = splitForSpeech(text);
+  if (!parts.length) return;
+  voice.total = parts.length;
+  voice.charsTotal = parts.reduce((n, p) => n + p.length, 0);
   listenCard.hidden = false;
   listenStatus.hidden = false;
+  listenProgress.textContent = `正在准备声音… 0/${parts.length} · Preparing the voice…`;
   const t0 = performance.now();
-  try {
-    const res = await fetch("/api/tts", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ text }),
-      signal,
-    });
-    if (!isCurrent(run)) return;
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      throw new Error(data.detail || "Could not make the voice. Please try again.");
+  const fromPhoto = () => ((performance.now() - startedAt) / 1000).toFixed(1);
+  let playableAt = null;
+
+  for (let i = 0; i < parts.length; i++) {
+    const tChunk = performance.now();
+    let blob;
+    try {
+      const res = await fetch("/api/tts", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ text: parts[i] }),
+        signal,
+      });
+      if (!isCurrent(run)) return;
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail || "Could not make the voice. Please try again.");
+      }
+      blob = await res.blob();
+      if (!isCurrent(run)) return;
+    } catch (err) {
+      if (!isCurrent(run) || err.name === "AbortError") return;
+      listenStatus.hidden = true;
+      listenWarn.textContent = `声音暂时不能用。${err.message}`;
+      listenWarn.hidden = false;
+      return;
     }
-    const blob = await res.blob();
+
+    const seconds = await wavSeconds(blob);
     if (!isCurrent(run)) return;
-    audioUrl = URL.createObjectURL(blob);
-    player.src = audioUrl;
-    listenStatus.hidden = true;
-    playBtn.hidden = false;
-    listenTiming.textContent = `Voice ready in ${((performance.now() - t0) / 1000).toFixed(1)}s · ${((performance.now() - startedAt) / 1000).toFixed(1)}s from photo`;
-  } catch (err) {
-    if (!isCurrent(run) || err.name === "AbortError") return;
-    listenStatus.hidden = true;
-    listenWarn.textContent = `声音暂时不能用。${err.message}`;
-    listenWarn.hidden = false;
+    voice.chunks.push({ url: URL.createObjectURL(blob), seconds });
+    voice.genSeconds += (performance.now() - tChunk) / 1000;
+    voice.audioSeconds += seconds;
+    voice.charsDone += parts[i].length;
+    voice.done = i === parts.length - 1;
+
+    if (!voice.playable && safeToStart(voice)) {
+      voice.playable = true;
+      playableAt = fromPhoto();
+      playBtn.hidden = false;
+    }
+    if (voice.waiting && voice.playing) playChunk(voice.index); // playback caught up: resume
+
+    if (!voice.done) {
+      listenProgress.textContent = `正在准备声音… ${i + 1}/${parts.length} · Preparing the voice…`;
+      listenStatus.hidden = voice.playable && !voice.waiting;
+    } else {
+      listenStatus.hidden = true;
+    }
   }
+  listenTiming.textContent =
+    `Play ready ${playableAt}s from photo · all ${parts.length} parts ready in ` +
+    `${((performance.now() - t0) / 1000).toFixed(1)}s (${voice.audioSeconds.toFixed(1)}s of speech)`;
 }
 
 input.addEventListener("change", async () => {
