@@ -121,10 +121,13 @@ const translationStatus = document.getElementById("translation-status");
 const translationEl = document.getElementById("translation");
 const translationWarn = document.getElementById("translation-warn");
 
-// Listen card: the real Hokkien voice from POST /api/tts, made sentence chunk by chunk
-// (slow on CPU). Play becomes available once enough audio is ready that the rest will be
-// made before playback reaches it, so playback runs without long gaps.
+// Listen card: the real Hokkien voice from POST /api/tts (slow on CPU).
+// By default the whole text is made in ONE piece, so it is one consistent voice, and Play
+// appears when it is all ready. Sentence chunks (SPEAK_IN_CHUNKS) let playback start
+// before the end on a fast machine (GPU), but without a reference voice each chunk can
+// sound like a different speaker, and on a CPU they bring no earlier start.
 // static/sample_tts.wav is kept in the repo but no longer used here.
+const SPEAK_IN_CHUNKS = false;
 const listenCard = document.getElementById("listen-card");
 const listenStatus = document.getElementById("listen-status");
 const listenProgress = document.getElementById("listen-progress");
@@ -362,13 +365,16 @@ async function translateSummary(text, run, signal) {
 }
 
 async function speak(text, run, signal) {
-  const parts = splitForSpeech(text);
+  const parts = SPEAK_IN_CHUNKS ? splitForSpeech(text) : [text.trim()].filter(Boolean);
   if (!parts.length) return;
   voice.total = parts.length;
   voice.charsTotal = parts.reduce((n, p) => n + p.length, 0);
   listenCard.hidden = false;
   listenStatus.hidden = false;
-  listenProgress.textContent = `正在准备声音… 0/${parts.length} · Preparing the voice…`;
+  listenProgress.textContent =
+    parts.length > 1
+      ? `正在准备声音… 0/${parts.length} · Preparing the voice…`
+      : "正在准备声音，请稍等… Preparing the voice, please wait…";
 
   for (let i = 0; i < parts.length; i++) {
     const tChunk = performance.now();
