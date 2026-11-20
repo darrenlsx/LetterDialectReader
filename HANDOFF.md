@@ -15,6 +15,13 @@ Read this file first. Add a new entry at the top before every push. Never put se
 
 ---
 
+### 2026-11-20, darrenlsx (Chinese-only summary)
+- **Pushed:** `main` directly (no branch). The 摘要 Summary card now shows only the Chinese translation. The English summary is hidden and the separate 中文 card is gone.
+- **State:** 120 tests pass. Checked in the browser with `samples/sample_letter.jpg`: ✓ shown, Chinese text, no warnings, 38s from photo. ESLint is not installed locally, so lint was not run.
+- **Decisions:** The English summary is still fetched (translation needs it) but not shown. Key details (重要资料) are still in English from the summary step. Warnings and the ✓/✗ mark are kept. `#translation` now sits inside `#summary-card`; `#summary` is only used for error messages.
+- **Needs from you:** `feature/listen-button` (143617c) is not on `main` yet. Its Listen wiring may read the old `translation-card` or `translation-timing` elements, so check it when merging.
+- **Local-only info:** none
+
 ### 2026-11-20, OzzyOw (Hokkien TTS)
 - **Pushed:** branch `feature/text-to-speech` (merged with `main` at 4b24950): `tts/` module, `POST /api/tts` in `app.py`, `tts_cli.py`, `tts/requirements.txt`, `tests/test_tts.py`, README section.
 - **State:** All 120 pytest tests pass (27 of them for TTS, with the model stubbed). Also run with the real model on a CPU-only Windows laptop (torch 2.15 CPU, omnivoice 0.2.1): the CLI and `POST /api/tts` return valid 24 kHz mono WAV (audible, not silent) for Hokkien text, and English-only text is rejected with 400. **Nobody has listened to it yet, so whether it sounds like Hokkien is unverified.**

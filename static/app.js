@@ -120,11 +120,10 @@ const detailsHeading = document.getElementById("details-heading");
 const detailsEl = document.getElementById("details");
 const summaryTiming = document.getElementById("summary-timing");
 
-const translationCard = document.getElementById("translation-card");
+// The translation lives inside the summary card: only the Chinese text is shown.
 const translationStatus = document.getElementById("translation-status");
 const translationEl = document.getElementById("translation");
 const translationWarn = document.getElementById("translation-warn");
-const translationTiming = document.getElementById("translation-timing");
 
 const BLURRY_MESSAGE = "Photo was blurry. Please take the picture again.";
 
@@ -134,12 +133,10 @@ function showError(message) {
 }
 
 function resetTranslation() {
-  translationCard.hidden = true;
   translationStatus.hidden = true;
   translationEl.textContent = "";
   translationWarn.hidden = true;
   translationWarn.textContent = "";
-  translationTiming.textContent = "";
 }
 
 function resetSummary() {
@@ -168,10 +165,10 @@ function showCross(message) {
   summaryEl.textContent = message;
 }
 
-function renderSummary(data, totalSeconds) {
+function renderSummary(data) {
   summaryStatus.hidden = true;
   setMark(Boolean(data.confident));
-  summaryEl.textContent = data.summary;
+  // The English summary is not shown; the Chinese translation replaces it.
 
   const notes = [];
   if (!data.confident) notes.push("I am not fully sure about this letter. Please ask family to check it.");
@@ -189,7 +186,6 @@ function renderSummary(data, totalSeconds) {
     li.append(tag, d.text);
     detailsEl.append(li);
   }
-  summaryTiming.textContent = `Explained in ${data.seconds}s · ${totalSeconds.toFixed(1)}s from photo`;
 }
 
 // Only the latest photo may update the screen. A new photo aborts the previous
@@ -212,8 +208,9 @@ async function summarise(text, startedAt, run, signal) {
     const data = await res.json().catch(() => ({}));
     if (!isCurrent(run)) return;
     if (!res.ok) throw new Error(data.detail || "Something went wrong. Please try again.");
-    renderSummary(data, (performance.now() - startedAt) / 1000);
+    renderSummary(data);
     summarised = data.summary;
+    summaryTiming.textContent = `Explained in ${data.seconds}s`;
   } catch (err) {
     if (!isCurrent(run) || err.name === "AbortError") return;
     showCross(`${err.message} Please try once more.`);
@@ -223,8 +220,8 @@ async function summarise(text, startedAt, run, signal) {
 }
 
 async function translateSummary(text, startedAt, run, signal) {
-  translationCard.hidden = false;
   translationStatus.hidden = false;
+  const explained = summaryTiming.textContent;
   try {
     const res = await fetch("/api/translate", {
       method: "POST",
@@ -243,7 +240,7 @@ async function translateSummary(text, startedAt, run, signal) {
       ? ""
       : `I could not translate this confidently${missing.length ? ` (missing: ${missing.join(", ")})` : ""}. Please ask family to check it.`;
     translationWarn.hidden = data.confident;
-    translationTiming.textContent = `Translated in ${data.seconds}s · ${((performance.now() - startedAt) / 1000).toFixed(1)}s from photo`;
+    summaryTiming.textContent = `${explained} · Translated in ${data.seconds}s · ${((performance.now() - startedAt) / 1000).toFixed(1)}s from photo`;
   } catch (err) {
     if (!isCurrent(run) || err.name === "AbortError") return;
     translationStatus.hidden = true;

@@ -79,21 +79,17 @@
         <div id="summary-status" class="status" hidden>
           <span class="spinner"></span> 正在解释… <span class="en">Explaining…</span>
         </div>
+        <div id="translation-status" class="status" hidden>
+          <span class="spinner"></span> 正在翻译… <span class="en">Translating…</span>
+        </div>
+        <!-- Only the Chinese translation is shown; #summary is used for error messages. -->
+        <p id="translation" class="summary" lang="zh"></p>
         <p id="summary" class="summary"></p>
+        <div id="translation-warn" class="warn" hidden></div>
         <div id="warn" class="warn" hidden></div>
         <h3 id="details-heading" hidden>重要资料 <span class="en" style="display:inline">Key details</span></h3>
         <ul id="details" class="details"></ul>
         <p id="summary-timing" class="timing"></p>
-      </section>
-
-      <section class="card" id="translation-card" hidden>
-        <h2>中文 <span class="en">Chinese</span></h2>
-        <div id="translation-status" class="status" hidden>
-          <span class="spinner"></span> 正在翻译… <span class="en">Translating…</span>
-        </div>
-        <p id="translation" class="summary" lang="zh"></p>
-        <div id="translation-warn" class="warn" hidden></div>
-        <p id="translation-timing" class="timing"></p>
       </section>
 
       <section class="card placeholder">
