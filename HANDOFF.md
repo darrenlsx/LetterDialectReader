@@ -15,6 +15,13 @@ Read this file first. Add a new entry at the top before every push. Never put se
 
 ---
 
+### 2026-11-21, darrenlsx (app opens on the language screen)
+- **Pushed:** branch `update-ui`, merged into `main`.
+- **State:** The app now always opens on the dialect choice (福建话 / 广东话 / 潮州话), even if a dialect was picked before. Before this, it skipped straight to the photo screen when one was saved. Checked in the browser with a saved dialect: it opens on the language screen, and picking 福建话 still slides to the photo screen. 148 tests pass.
+- **Decisions:** The chosen dialect is still saved in `localStorage['letterReader.dialect']`; only the auto-skip is removed (one change in `static/app.js`).
+- **Needs from you:** nothing.
+- **Local-only info:** none.
+
 ### 2026-11-20, darrenlsx (Optimize-Audio: Hokkien wording + faster voice)
 - **Pushed:** branch `Optimize-Audio` (not merged into `main`).
 - **State:** Works end to end on a CPU-only laptop (i7-1165G7). 148 tests pass.

@@ -98,9 +98,9 @@ document.getElementById("change-lang").addEventListener("click", () => {
   showScreen("screen-language", "back");
 });
 
+// The app always opens on the dialect choice, even if one was picked last time.
 renderDialects();
-if (currentDialect) openPhotoScreen();
-else showScreen("screen-language");
+showScreen("screen-language");
 
 // ---------- Photo / OCR ----------
 const input = document.getElementById("photo");
