@@ -60,20 +60,38 @@ CallModel = Callable[[list[dict[str, str]], Env], str]
 # ---------------------------------------------------------------------------
 
 def load_dotenv(path: str | Path | None = None) -> None:
-    """Load KEY=VALUE lines from .env into os.environ without overriding."""
+    """Load KEY=VALUE lines from .env into os.environ without overriding.
+
+    Like Node's --env-file: `#` lines are comments, `export ` is allowed, a
+    quoted value is taken as-is, and an unquoted value ends at ` #` (so
+    `RATE_LIMIT_MAX=5   # per minute` gives "5").
+    """
     path = Path(path) if path else Path(__file__).resolve().parent.parent / ".env"
     if not path.is_file():
         return
-    for line in path.read_text(encoding="utf-8").splitlines():
+    for key, value in parse_dotenv(path.read_text(encoding="utf-8")).items():
+        os.environ.setdefault(key, value)
+
+
+def parse_dotenv(text: str) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for line in text.splitlines():
         line = line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
         key, value = line.split("=", 1)
-        key, value = key.strip(), value.strip()
-        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
-            value = value[1:-1]
+        key = key.strip()
+        if key.startswith("export "):
+            key = key[len("export "):].strip()
+        value = value.strip()
+        if value[:1] in ("'", '"'):
+            end = value.find(value[0], 1)
+            value = value[1:end] if end != -1 else value[1:]
+        else:
+            value = re.split(r"\s+#", value, maxsplit=1)[0].strip()
         if key and value:
-            os.environ.setdefault(key, value)
+            out[key] = value
+    return out
 
 
 # ---------------------------------------------------------------------------

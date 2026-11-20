@@ -324,6 +324,39 @@ def test_base_url_and_model_from_env_with_defaults(monkeypatch):
     assert json.loads(fake.requests[1].data)["model"] == LLM_MODEL
 
 
+def test_parse_dotenv_strips_inline_comments_and_quotes():
+    env = engine.parse_dotenv(
+        "# comment\n"
+        "OPENCODE_API_KEY=abc123\n"
+        "RATE_LIMIT_MAX=5          # summary requests per IP per window\n"
+        "export LLM_MODEL=deepseek-v4.1-flash\n"
+        'QUOTED="has # hash"  # trailing\n'
+        "SINGLE='x y'\n"
+        "EMPTY=\n"
+        "URL=https://host/path#frag\n"
+    )
+    assert env == {
+        "OPENCODE_API_KEY": "abc123",
+        "RATE_LIMIT_MAX": "5",
+        "LLM_MODEL": "deepseek-v4.1-flash",
+        "QUOTED": "has # hash",
+        "SINGLE": "x y",
+        "URL": "https://host/path#frag",
+    }
+
+
+def test_load_dotenv_does_not_override_existing(monkeypatch, tmp_path):
+    p = tmp_path / ".env"
+    p.write_text("LDR_TEST_A=from_file  # note\nLDR_TEST_B=from_file\n", encoding="utf-8")
+    monkeypatch.setenv("LDR_TEST_B", "from_shell")
+    monkeypatch.delenv("LDR_TEST_A", raising=False)
+    engine.load_dotenv(p)
+    import os
+    assert os.environ["LDR_TEST_A"] == "from_file"
+    assert os.environ["LDR_TEST_B"] == "from_shell"
+    monkeypatch.delenv("LDR_TEST_A")
+
+
 def test_sends_app_user_agent_not_urllib_default(monkeypatch):
     fake = FakeUrlopen(lambda req: ok_response(json.dumps(GOOD)))
     monkeypatch.setattr(engine.urllib.request, "urlopen", fake)

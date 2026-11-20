@@ -67,9 +67,13 @@ The letter is treated as untrusted data, so instructions written inside a letter
 
 It raises `summary.SummariseError` with `.code` `bad_input` (text empty/too short, e.g. a blurry photo), `no_key` or `model_failed`.
 
-API endpoint: `POST /api/summary` takes JSON `{"text": ...}` and returns the result above plus `seconds`. It is rate-limited per IP and rejects cross-origin requests.
+API endpoint: `POST /api/summary` takes JSON `{"text": ...}` and returns the result above plus `seconds`.
 
-In the web demo, the photo is read, then the summary appears with a tick (or a cross plus "please ask family" when not confident). A photo with almost no readable text shows a cross and "Photo was blurry. Please take the picture again."
+Both API endpoints are rate-limited per IP, reject cross-origin requests, require `Content-Length` and cap the body size before reading it. If `ACCESS_TOKEN` is set in `.env`, they also need the token (header `x-access-token`, `?token=`, or the cookie set by opening `/?token=<value>` once).
+
+In the web demo, the photo is read, then the summary appears with a tick (or a cross plus "please ask family" when not confident). `POST /api/ocr` also returns `confidence` (0-1) and `readable`; a photo that isn't readable (under 20 characters, or confidence below 0.9) shows a cross and "Photo was blurry. Please take the picture again." In code, use `ocr.extract_text_with_confidence(path)` to get the score.
+
+**Phone on the same Wi-Fi:** set `ACCESS_TOKEN` in `.env`, run `uvicorn app:app --host 0.0.0.0`, then open `http://<your-laptop-IP>:8000/?token=<value>` once on the phone.
 
 ## Tests and lint
 

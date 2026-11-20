@@ -15,6 +15,18 @@ Read this file first. Add a new entry at the top before every push. Never put se
 
 ---
 
+### 2026-11-20, OzzyOw (review fixes on `feature/ocr-summary`)
+- **Pushed:** branch `feature/ocr-summary` (PR #3), fixes from a code review, plus `main` (logo) merged in
+- **State:** 64 tests pass (`python -m pytest`), lint clean.
+- **Decisions:**
+  - **Blurry photos:** `ocr/engine.py` has a new `extract_text_with_confidence(path) -> (text, score)`; `extract_text` is unchanged for callers. `/api/ocr` now also returns `confidence` and `readable`. `readable` needs 20+ characters and confidence ≥ 0.9. Calibrated on `samples/sample_letter.jpg`: blur radius 0-3 scored 0.94-0.97 and read correctly; radius 4 scored 0.83 and misread the date as "20 Noventer 2828", so it now gets the cross instead of a wrong summary. **Please re-check the threshold with real phone photos.**
+  - **API guard (middleware) for `/api/ocr` and `/api/summary`:** cross-origin check, optional `ACCESS_TOKEN`, per-IP rate limits (summary 5/min, OCR 10/min), and `Content-Length` required and capped before any body is read.
+  - **Phone UI:** a new photo aborts the previous photo's requests, and late replies are ignored, so two letters can't mix on screen.
+  - `.env` loading now strips inline comments (`RATE_LIMIT_MAX=5  # note` → `5`) and accepts quotes and `export`.
+- **How to run on the phone:** set `ACCESS_TOKEN` in `.env`, run `uvicorn app:app --host 0.0.0.0`, open `http://<your-LAN-IP>:8000/?token=<value>` once on the phone.
+- **Needs from you:** review the `ocr/engine.py` change (new function; scores come from PaddleOCR's `rec_scores`).
+- **Local-only info:** none new.
+
 ### 2026-11-20, OzzyOw (summary ported to Python, wired into the OCR app)
 - **Pushed:** branch `feature/ocr-summary` (PR into `main`): photo → OCR → summary in one flow in the Python app
 - **State:**

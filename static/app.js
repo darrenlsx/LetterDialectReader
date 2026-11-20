@@ -15,8 +15,6 @@ const detailsHeading = document.getElementById("details-heading");
 const detailsEl = document.getElementById("details");
 const summaryTiming = document.getElementById("summary-timing");
 
-// Same minimum as the server: shorter OCR text means the photo was unreadable.
-const MIN_TEXT_CHARS = 20;
 const BLURRY_MESSAGE = "Photo was blurry. Please take the picture again.";
 
 function showError(message) {
@@ -73,7 +71,13 @@ function renderSummary(data, totalSeconds) {
   summaryTiming.textContent = `Explained in ${data.seconds}s · ${totalSeconds.toFixed(1)}s from photo`;
 }
 
-async function summarise(text, startedAt) {
+// Only the latest photo may update the screen. A new photo aborts the previous
+// photo's requests, and any reply that still arrives late is ignored.
+let currentRun = 0;
+let controller = null;
+const isCurrent = (run) => run === currentRun;
+
+async function summarise(text, startedAt, run, signal) {
   summaryCard.hidden = false;
   summaryStatus.hidden = false;
   try {
@@ -81,11 +85,14 @@ async function summarise(text, startedAt) {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ text }),
+      signal,
     });
     const data = await res.json().catch(() => ({}));
+    if (!isCurrent(run)) return;
     if (!res.ok) throw new Error(data.detail || "Something went wrong. Please try again.");
     renderSummary(data, (performance.now() - startedAt) / 1000);
   } catch (err) {
+    if (!isCurrent(run) || err.name === "AbortError") return;
     showCross(`${err.message} Please try once more.`);
   }
 }
@@ -93,6 +100,11 @@ async function summarise(text, startedAt) {
 input.addEventListener("change", async () => {
   const file = input.files[0];
   if (!file) return;
+
+  const run = ++currentRun;
+  if (controller) controller.abort();
+  controller = new AbortController();
+  const { signal } = controller;
 
   errorEl.hidden = true;
   textCard.hidden = true;
@@ -112,26 +124,31 @@ input.addEventListener("change", async () => {
 
   const form = new FormData();
   form.append("file", file);
-  let text;
+  input.value = "";
+  let ocr;
   try {
-    const res = await fetch("/api/ocr", { method: "POST", body: form });
+    const res = await fetch("/api/ocr", { method: "POST", body: form, signal });
     const data = await res.json().catch(() => ({}));
+    if (!isCurrent(run)) return;
     if (!res.ok) throw new Error(data.detail || "Something went wrong. Please try again.");
-    text = data.text || "";
-    textEl.textContent = text || "(No text found. Try a clearer photo.)";
-    timingEl.textContent = `Read in ${data.seconds}s`;
-    textCard.hidden = false;
+    ocr = data;
   } catch (err) {
+    if (!isCurrent(run) || err.name === "AbortError") return;
+    statusEl.hidden = true;
     showError(err.message);
     return;
-  } finally {
-    statusEl.hidden = true;
-    input.value = "";
   }
 
-  if (text.trim().length < MIN_TEXT_CHARS) {
+  statusEl.hidden = true;
+  const text = ocr.text || "";
+  textEl.textContent = text || "(No text found. Try a clearer photo.)";
+  timingEl.textContent = `Read in ${ocr.seconds}s`;
+  textCard.hidden = false;
+
+  // The server decides: enough text, read with enough confidence.
+  if (!ocr.readable) {
     showCross(BLURRY_MESSAGE);
     return;
   }
-  await summarise(text, startedAt);
+  await summarise(text, startedAt, run, signal);
 });
