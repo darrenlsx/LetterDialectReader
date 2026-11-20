@@ -18,4 +18,9 @@ export default [
       "no-var": "error",
     },
   },
+  {
+    // Front-end scripts run in the browser, not Node.
+    files: ["static/**/*.js", "public/**/*.js"],
+    languageOptions: { sourceType: "script", globals: { ...globals.browser } },
+  },
 ];
