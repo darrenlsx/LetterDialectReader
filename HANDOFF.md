@@ -15,6 +15,32 @@ Read this file first. Add a new entry at the top before every push. Never put se
 
 ---
 
+### 2026-11-20, OzzyOw (review fixes)
+- **Pushed:** branch `summarise-oci-generated-text`, fixes from a code review of the summarisation feature
+- **State:** 49 tests pass (`npm test`). Live check against `deepseek-v4.1-flash` passed, including a letter with an injected "ignore previous instructions" line (flagged as suspicious, `confident` false).
+- **Decisions:**
+  - Critical-detail check now compares canonical values (dates day-first, amounts, times, IDs/phones) as whole tokens, so "$500" no longer satisfies "$50" and "April 11, 2026" counts as "11 April 2026".
+  - `confident` is true only if the model says exactly `true` and `unclear_parts` is empty.
+  - Letter text is wrapped in a random per-request tag and treated as untrusted data.
+  - One retry on bad JSON, timeout, 429 or 5xx (not 401/403). Client sees generic errors only; details go to the server log.
+  - Server binds to 127.0.0.1 by default, rate-limits `/api/summarise` (5/min/IP), rejects cross-origin POSTs, optional `ACCESS_TOKEN`.
+- **How to run:** `npm start`, open http://localhost:3000. For the real-phone demo set `HOST=0.0.0.0` and `ACCESS_TOKEN` in `.env`, then open `http://<your-LAN-IP>:3000/?token=<value>` once on the phone. All optional vars are listed in `.env.template`.
+- **Needs from you:** same as below (OCI wiring, where Hokkien translation sits).
+- **Local-only info:** none new.
+
+### 2026-11-20, OzzyOw (summarisation built)
+- **Pushed:** branch `summarise-oci-generated-text`, summarisation feature (not yet merged to `main`). If you cannot see it on GitHub, the push is still pending.
+- **State:** works end to end against the real `deepseek-v4.1-flash` model with a sample letter. 7 unit tests pass (`npm test`).
+  - `src/summarise.js`: `summarise(text)` takes OCI-extracted letter text and returns `{ summary, key_details[], action_required, confident, unclear_parts[], missing_details[] }`. English output only; Hokkien translation and speech are not built.
+  - `server.js`: `POST /api/summarise` with `{ "text": "..." }`, plus static hosting. Run with `npm start`, open http://localhost:3000.
+  - `public/index.html`: simulated phone UI. Paste OCI text (or "Use sample letter"), tap Summarise.
+- **Decisions:**
+  - Endpoint is OpenCode Go (`https://opencode.ai/inference/go/openai/v1`), authenticated with `OPENCODE_API_KEY`, same as the lunch-uncle project.
+  - Critical-detail safety net: code extracts amounts, dates, IDs, phone numbers and times from the source. If any are missing from the output it retries once, then appends them verbatim and sets `confident` to false.
+  - No dependencies; Node 26 built-ins only (`node --env-file`, `node --test`).
+- **Needs from you:** how the real OCI step will call `summarise` (the function takes plain text, so wire it in after OCI). Decide where the Hokkien translation step sits.
+- **Local-only info:** `.env` with `OPENCODE_API_KEY` must be created from `.env.template`. `.agents/`, `.claude/` and `skills-lock.json` are untracked and not committed.
+
 ### 2026-11-20, darrenlsx
 - **Pushed:** branch `feature/ocr` (PR #1 into `main`): OCR module, CLI and a phone-style web demo
 - **State:** Working and tested on a Windows laptop CPU. `from ocr import extract_text` takes a PNG/JPEG path and returns plain text in reading order, in about 3s per letter once the model has loaded. Web demo: `uvicorn app:app --reload`, then open http://localhost:8000. `POST /api/ocr` returns `{text, seconds}`. The Summary and Listen sections in the UI are placeholders.
