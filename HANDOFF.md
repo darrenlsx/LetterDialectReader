@@ -15,6 +15,23 @@ Read this file first. Add a new entry at the top before every push. Never put se
 
 ---
 
+### 2026-11-20, darrenlsx (real Hokkien voice in the Listen card)
+- **Pushed:** branch `feature/listen-button` (PR into `main`), with `main` (simulated TTS, PR #8) merged in.
+- **State:** Works end to end in the browser on a CPU-only laptop (i7-1165G7, 16 GB RAM, torch 2.15 CPU).
+  - A short fake clinic letter went through OCR → summary → translation in about 25 s.
+  - The **real** `/api/tts` voice was then ready after 398 s (13.8 s of audio, 70 Chinese characters; that includes the first model load).
+  - 120 tests pass.
+  - Nobody has listened closely yet, so the Hokkien quality is unverified.
+- **Decisions:**
+  - The simulated TTS is replaced by the real `POST /api/tts` call, with no fallback. `static/sample_tts.wav` stays in the repo but isn't used.
+  - The full Chinese translation is spoken. While it waits, the card shows "正在准备声音…". When ready, a big green ▶ 播放 / ❚❚ 暂停 button appears, and the user taps it (no autoplay, because browsers block audio that starts by itself after a long wait).
+  - Errors show inside the card ("声音暂时不能用…"). A new photo cancels the pending voice.
+  - Fixed: the Play button's `display:flex` overrode `[hidden]`.
+- **Needs from you:**
+  - Speed is next. OmniVoice docs recommend `num_step=16` (default 32) for faster inference. A short spoken line (about 40 characters, in **Hokkien wording**, not Mandarin) would also cut the time a lot. Could the summary/translate step return a short `spoken_line` in Hokkien wording?
+  - The translation keeps English names ("Sample Clinic") in the Chinese text.
+- **Local-only info:** the voice needs `pip install -r tts/requirements.txt` (CPU torch: `--index-url https://download.pytorch.org/whl/cpu`). The model (about 2.85 GB) downloads to `~/.cache/huggingface` on first use.
+
 ### 2026-11-20, OzzyOw (TTS integration demo)
 - **Pushed:** branch `tts-integration-demo`, merged into `main`: Listen card in the UI plus `static/sample_tts.wav`.
 - **State:** After the Chinese translation appears, the Listen card shows "正在生成语音…" for 5 s, then plays `static/sample_tts.wav` (autoplay, with visible controls in case the browser blocks it). Checked in the browser with the OCR/summary/translate replies stubbed: spinner 5.0 s, then audio playing (7.7 s). Not checked end to end with the real pipeline in the UI. Nobody has listened to the clip, so whether it sounds like Hokkien is unverified.

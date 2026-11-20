@@ -123,33 +123,15 @@ const translationStatus = document.getElementById("translation-status");
 const translationEl = document.getElementById("translation");
 const translationWarn = document.getElementById("translation-warn");
 
-// Listen card. TTS is simulated for now: after translation we wait a few seconds,
-// then play a pre-generated Hokkien recording. Swap speak() for a /api/tts call later.
-const listenStatus = document.getElementById("listen-status");
-const listenAudio = document.getElementById("listen-audio");
+// Listen card: the real Hokkien voice from POST /api/tts (slow on CPU), played with a big
+// Play button. static/sample_tts.wav is kept in the repo but no longer used here.
 const listenCard = document.getElementById("listen-card");
-const SIMULATED_TTS_MS = 5000;
-const SAMPLE_TTS_URL = "/static/sample_tts.wav";
-
-function resetListen() {
-  listenCard.hidden = true;
-  listenStatus.hidden = true;
-  listenAudio.pause();
-  listenAudio.hidden = true;
-  listenAudio.removeAttribute("src");
-}
-
-async function speak(run) {
-  listenCard.hidden = false;
-  listenStatus.hidden = false;
-  await new Promise((resolve) => setTimeout(resolve, SIMULATED_TTS_MS));
-  if (!isCurrent(run)) return;
-  listenStatus.hidden = true;
-  listenAudio.src = SAMPLE_TTS_URL;
-  listenAudio.hidden = false;
-  // Browsers may block autoplay; the visible controls let the user tap play.
-  listenAudio.play().catch(() => {});
-}
+const listenStatus = document.getElementById("listen-status");
+const playBtn = document.getElementById("play");
+const player = document.getElementById("player");
+const listenWarn = document.getElementById("listen-warn");
+const listenTiming = document.getElementById("listen-timing");
+let audioUrl = null;
 
 const BLURRY_MESSAGE = "Photo was blurry. Please take the picture again.";
 
@@ -157,6 +139,36 @@ function showError(message) {
   errorEl.textContent = message;
   errorEl.hidden = false;
 }
+
+function resetListen() {
+  player.pause();
+  player.removeAttribute("src");
+  if (audioUrl) URL.revokeObjectURL(audioUrl);
+  audioUrl = null;
+  listenCard.hidden = true;
+  listenStatus.hidden = true;
+  playBtn.hidden = true;
+  setPlaying(false);
+  listenWarn.hidden = true;
+  listenWarn.textContent = "";
+  listenTiming.textContent = "";
+}
+
+function setPlaying(playing) {
+  playBtn.classList.toggle("playing", playing);
+  playBtn.innerHTML = playing
+    ? `<span class="play-icon" aria-hidden="true">❚❚</span> 暂停 <span class="en">Pause</span>`
+    : `<span class="play-icon" aria-hidden="true">▶</span> 播放 <span class="en">Play</span>`;
+}
+
+playBtn.addEventListener("click", () => {
+  if (!audioUrl) return;
+  if (player.paused) player.play().catch(() => {});
+  else player.pause();
+});
+player.addEventListener("play", () => setPlaying(true));
+player.addEventListener("pause", () => setPlaying(false));
+player.addEventListener("ended", () => setPlaying(false));
 
 function resetTranslation() {
   translationStatus.hidden = true;
@@ -234,6 +246,7 @@ async function summarise(text, startedAt, run, signal) {
 }
 
 async function translateSummary(text, startedAt, run, signal) {
+  let translated = null;
   translationStatus.hidden = false;
   const explained = summaryTiming.textContent;
   try {
@@ -255,12 +268,45 @@ async function translateSummary(text, startedAt, run, signal) {
       : `I could not translate this confidently${missing.length ? ` (missing: ${missing.join(", ")})` : ""}. Please ask family to check it.`;
     translationWarn.hidden = data.confident;
     summaryTiming.textContent = `${explained} · Translated in ${data.seconds}s · ${((performance.now() - startedAt) / 1000).toFixed(1)}s from photo`;
-    await speak(run);
+    translated = data.text;
   } catch (err) {
     if (!isCurrent(run) || err.name === "AbortError") return;
     translationStatus.hidden = true;
     translationWarn.textContent = `${err.message} Please try once more.`;
     translationWarn.hidden = false;
+  }
+  // The voice is prepared straight away (it is slow on CPU); the user taps Play when ready.
+  if (translated) await speak(translated, startedAt, run, signal);
+}
+
+async function speak(text, startedAt, run, signal) {
+  listenCard.hidden = false;
+  listenStatus.hidden = false;
+  const t0 = performance.now();
+  try {
+    const res = await fetch("/api/tts", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ text }),
+      signal,
+    });
+    if (!isCurrent(run)) return;
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.detail || "Could not make the voice. Please try again.");
+    }
+    const blob = await res.blob();
+    if (!isCurrent(run)) return;
+    audioUrl = URL.createObjectURL(blob);
+    player.src = audioUrl;
+    listenStatus.hidden = true;
+    playBtn.hidden = false;
+    listenTiming.textContent = `Voice ready in ${((performance.now() - t0) / 1000).toFixed(1)}s · ${((performance.now() - startedAt) / 1000).toFixed(1)}s from photo`;
+  } catch (err) {
+    if (!isCurrent(run) || err.name === "AbortError") return;
+    listenStatus.hidden = true;
+    listenWarn.textContent = `声音暂时不能用。${err.message}`;
+    listenWarn.hidden = false;
   }
 }
 

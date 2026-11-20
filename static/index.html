@@ -90,12 +90,17 @@
         <p id="summary-timing" class="timing"></p>
       </section>
 
-      <section class="card" id="listen-card" hidden>
+      <section class="card listen-card" id="listen-card" hidden>
         <h2>🔊 收听 <span class="en">Listen</span></h2>
         <div id="listen-status" class="status" hidden>
-          <span class="spinner"></span> 正在生成语音… <span class="en">Preparing speech…</span>
+          <span class="spinner"></span> 正在准备声音… <span class="en">Preparing the voice… this can take a minute</span>
         </div>
-        <audio id="listen-audio" controls hidden></audio>
+        <button id="play" class="play-button" type="button" hidden>
+          <span class="play-icon" aria-hidden="true">▶</span> 播放 <span class="en">Play</span>
+        </button>
+        <audio id="player" preload="auto" hidden></audio>
+        <div id="listen-warn" class="warn" hidden></div>
+        <p id="listen-timing" class="timing"></p>
       </section>
     </main>
     </div>

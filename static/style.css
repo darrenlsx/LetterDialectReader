@@ -364,5 +364,31 @@ body {
 .tag { font-size: 12px; text-transform: uppercase; color: #666; margin-right: 6px; }
 .placeholder { color: #666; font-size: 18px; }
 .placeholder p { margin: 0; }
-#listen-audio { width: 100%; margin-top: 12px; }
-#listen-audio[hidden], #listen-card[hidden] { display: none; }
+
+.play-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 80px;
+  margin-top: 4px;
+  border: none;
+  border-radius: 20px;
+  background: #1f7a3d;
+  color: #fff;
+  font: inherit;
+  font-size: 28px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.15s ease, background-color 0.2s ease;
+}
+.play-button .en { display: inline; color: #d6f5df; font-size: 16px; }
+.play-button:hover { background: #18642f; }
+.play-button:active { transform: scale(0.96); }
+.play-button.playing { background: #0b5ed7; }
+.play-button.playing .en { color: #dce8ff; }
+.play-icon { font-size: 26px; }
+.listen-card .status .en { display: block; width: 100%; font-size: 14px; }
+/* display:flex above would otherwise override the hidden attribute */
+.play-button[hidden], #listen-card[hidden] { display: none; }
