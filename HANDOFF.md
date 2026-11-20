@@ -15,6 +15,13 @@ Read this file first. Add a new entry at the top before every push. Never put se
 
 ---
 
+### 2026-11-20, darrenlsx (logo)
+- **Pushed:** branch `feature/logo`: app logo `static/logo.svg` (信 in a speech bubble, blue `#0b5ed7`, same as the main button), shown in the phone header and used as the favicon
+- **State:** Works in the OCR demo (`static/`). Not yet in `public/index.html` (the Node page).
+- **Decisions:** We picked 信 ("letter") because the users read Chinese rather than English. The speech bubble stands for "read aloud to you".
+- **Needs from you:** In the Python port, please serve `static/logo.svg` and use it in the header and as the favicon (`<link rel="icon" type="image/svg+xml" href="/static/logo.svg">`).
+- **Local-only info:** none
+
 ### 2026-11-20, OzzyOw (review fixes)
 - **Pushed:** branch `summarise-oci-generated-text`, fixes from a code review of the summarisation feature
 - **State:** 49 tests pass (`npm test`). Live check against `deepseek-v4.1-flash` passed, including a letter with an injected "ignore previous instructions" line (flagged as suspicious, `confident` false).
