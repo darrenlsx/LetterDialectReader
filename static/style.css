@@ -42,8 +42,10 @@ body {
   color: #111;
 }
 
+.brand { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+.logo { width: 60px; height: 60px; flex: none; }
 header h1 { margin: 0; font-size: 28px; }
-.tagline { margin: 4px 0 18px; font-size: 18px; color: #333; }
+.tagline { margin: 4px 0 0; font-size: 18px; color: #333; }
 
 .big-button {
   display: block;
