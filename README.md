@@ -9,7 +9,7 @@ This is a proof of concept. It runs in a desktop browser, inside a phone mock-up
 |------|-------|--------|
 | OCR (image → text) | Darren | ✅ `ocr/` |
 | Explanation / summary | Ozzy | ✅ `summary/` |
-| Text-to-speech (MERaLion) | Both | ⏳ |
+| Text-to-speech (Hokkien, MERaLiON-OmniVoice) | Both | 🧪 `tts/` (module + `/api/tts`; not yet wired into the UI) |
 
 ## Setup (Windows, Python 3.11)
 
@@ -74,6 +74,27 @@ Both API endpoints are rate-limited per IP, reject cross-origin requests, requir
 In the web demo, the photo is read, then the summary appears with a tick (or a cross plus "please ask family" when not confident). `POST /api/ocr` also returns `confidence` (0-1) and `readable`; a photo that isn't readable (under 20 characters, or confidence below 0.9) shows a cross and "Photo was blurry. Please take the picture again." In code, use `ocr.extract_text_with_confidence(path)` to get the score.
 
 **Phone on the same Wi-Fi:** set `ACCESS_TOKEN` in `.env`, run `uvicorn app:app --host 0.0.0.0`, then open `http://<your-laptop-IP>:8000/?token=<value>` once on the phone.
+
+## Using the Hokkien TTS module
+
+```python
+from tts import synthesise
+
+wav_bytes = synthesise("你阿母煮的菜真好食")   # Hokkien in Chinese characters -> WAV (24 kHz mono)
+```
+
+Uses [MERaLiON-OmniVoice-Hokkien-TTS](https://huggingface.co/MERaLiON/MERaLiON-OmniVoice-Hokkien-TTS) (about 2.7 GB, downloaded on first use). **It does not translate.** The input must already be Hokkien written in Chinese characters; English or plain Mandarin wording gives poor speech. Translation happens in an earlier step.
+
+Setup (optional, on top of the steps above; a CUDA GPU is recommended):
+
+```powershell
+pip install -r tts/requirements.txt
+python tts_cli.py "你阿母煮的菜真好食" --out output/hello.wav
+```
+
+`synthesise` raises `tts.TtsError` with `code` `bad_input`, `unavailable` (dependencies or model missing) or `synthesis_failed`. Optional env vars (`TTS_MODEL`, `TTS_DEVICE`, `TTS_REF_AUDIO`, `TTS_REF_TEXT` for voice cloning) are documented in `tts/engine.py`.
+
+API endpoint: `POST /api/tts` takes `{"text": "..."}` and returns `audio/wav`. Tests: `pip install pytest httpx`, then `pytest tests`.
 
 ## Tests and lint
 

@@ -11,6 +11,7 @@ Env (from the shell or .env; all optional except OPENCODE_API_KEY):
                         or the cookie set by opening /?token=<value> once
   RATE_LIMIT_MAX        summary requests per IP per window, default 5
   OCR_RATE_LIMIT_MAX    photo uploads per IP per window, default 10
+  TTS_RATE_LIMIT_MAX    voice requests per IP per window, default 5
   RATE_LIMIT_WINDOW_S   window length in seconds, default 60
 
 For the phone demo on the LAN: uvicorn app:app --host 0.0.0.0, with ACCESS_TOKEN set.
@@ -28,12 +29,13 @@ from urllib.parse import urlsplit
 
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from ocr import SUPPORTED_EXTENSIONS, UnsupportedImageError, extract_text_with_confidence
 from summary import SummariseError, load_dotenv, summarise
 from translate import TranslateError, translate
+from tts import TtsError, synthesise
 
 load_dotenv()
 log = logging.getLogger("letter_reader")
@@ -42,6 +44,7 @@ STATIC_DIR = Path(__file__).parent / "static"
 MAX_UPLOAD_BYTES = 15 * 1024 * 1024
 MAX_SUMMARY_BODY_BYTES = 200_000
 MAX_TRACKED_IPS = 10_000
+MAX_TTS_BODY_BYTES = 20_000
 # A photo is "readable" when OCR found enough text with enough confidence;
 # otherwise the phone shows the cross and asks for a retake (the brief's
 # "Photo was blurry" step). MIN_TEXT_CHARS matches summary's minimum.
@@ -57,6 +60,13 @@ SUMMARY_ERRORS = {
     "bad_input": (400, None),
     "no_key": (500, "The summary service is not available right now."),
     "model_failed": (502, "The summary service is not available right now."),
+}
+
+# TTS: bad_input keeps its own message; the rest stay generic.
+TTS_ERRORS = {
+    "bad_input": (400, None),
+    "unavailable": (503, "The voice service is not available right now."),
+    "synthesis_failed": (502, "Could not make the voice. Please try again."),
 }
 
 TRANSLATE_ERRORS = {
@@ -140,6 +150,7 @@ _WINDOW_S = float(os.environ.get("RATE_LIMIT_WINDOW_S", "60"))
 summary_limiter = RateLimiter(int(os.environ.get("RATE_LIMIT_MAX", "5")), _WINDOW_S)
 translate_limiter = RateLimiter(int(os.environ.get("RATE_LIMIT_MAX", "5")), _WINDOW_S)
 ocr_limiter = RateLimiter(int(os.environ.get("OCR_RATE_LIMIT_MAX", "10")), _WINDOW_S)
+tts_limiter = RateLimiter(int(os.environ.get("TTS_RATE_LIMIT_MAX", "5")), _WINDOW_S)
 
 # POST routes guarded by api_guard: path -> (limiter name, max body bytes).
 # The multipart allowance covers form boundaries/headers around the photo.
@@ -147,6 +158,7 @@ API_ROUTES = {
     "/api/summary": ("summary_limiter", MAX_SUMMARY_BODY_BYTES),
     "/api/translate": ("translate_limiter", MAX_SUMMARY_BODY_BYTES),
     "/api/ocr": ("ocr_limiter", MAX_UPLOAD_BYTES + 64 * 1024),
+    "/api/tts": ("tts_limiter", MAX_TTS_BODY_BYTES),
 }
 
 
@@ -251,3 +263,37 @@ async def translate_endpoint(request: Request):
         raise HTTPException(500, "Something went wrong. Please try again.") from None
     result["seconds"] = round(time.perf_counter() - start, 1)
     return result
+
+
+@app.post("/api/tts")
+async def tts_endpoint(request: Request):
+    """Body: {"text": "<Hokkien in Chinese characters>"}. Returns audio/wav.
+
+    Origin, token, rate limit and body size are checked by api_guard.
+    """
+    body = await request.body()
+    if len(body) > MAX_TTS_BODY_BYTES:
+        raise HTTPException(413, "That text is too long.")
+    try:
+        text = json.loads(body)["text"]
+    except (ValueError, KeyError, TypeError):
+        raise HTTPException(400, 'Body must be JSON: {"text": string}') from None
+
+    start = time.perf_counter()
+    try:
+        wav = await run_in_threadpool(synthesise, text)
+    except TtsError as exc:
+        status, public = TTS_ERRORS.get(exc.code, (500, None))
+        if exc.code != "bad_input":
+            log.error("tts failed: %s | %s", exc.code, exc.detail, exc_info=exc)
+        if public is None:
+            public = exc.message if exc.code == "bad_input" else "Something went wrong. Please try again."
+        raise HTTPException(status, public) from None
+    except Exception:
+        log.exception("tts crashed")
+        raise HTTPException(500, "Something went wrong. Please try again.") from None
+    return Response(
+        wav,
+        media_type="audio/wav",
+        headers={"x-seconds": f"{time.perf_counter() - start:.1f}", "cache-control": "no-store"},
+    )

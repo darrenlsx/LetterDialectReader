@@ -15,6 +15,20 @@ Read this file first. Add a new entry at the top before every push. Never put se
 
 ---
 
+### 2026-11-20, OzzyOw (Hokkien TTS)
+- **Pushed:** branch `feature/text-to-speech` (merged with `main` at 4b24950): `tts/` module, `POST /api/tts` in `app.py`, `tts_cli.py`, `tts/requirements.txt`, `tests/test_tts.py`, README section.
+- **State:** All 120 pytest tests pass (27 of them for TTS, with the model stubbed). Also run with the real model on a CPU-only Windows laptop (torch 2.15 CPU, omnivoice 0.2.1): the CLI and `POST /api/tts` return valid 24 kHz mono WAV (audible, not silent) for Hokkien text, and English-only text is rejected with 400. **Nobody has listened to it yet, so whether it sounds like Hokkien is unverified.**
+  - **Speed on CPU is too slow for the 5-minute target:** about 43 s to speak a 3 s sentence once warm (roughly 13x real time). The first request also downloads the 2.7 GB model (first CLI run took about 3.5 min) and loads it (about 5 s once cached). A spoken summary of 30 s would take about 7 min on CPU, so the demo needs a CUDA GPU, short phrases, or pre-generated audio.
+  - Not wired into the UI: `static/` and `public/` have no Listen button yet.
+- **Decisions:**
+  - Model is `MERaLiON/MERaLiON-OmniVoice-Hokkien-TTS`. It reads Hokkien in Chinese characters and does not translate, so the translation step (separate branch) must output Hokkien wording, not Mandarin.
+  - `synthesise(text)` returns WAV bytes. Input must contain at least one Chinese character and be at most 1000 characters. Errors are `TtsError` with `bad_input`, `unavailable` or `synthesis_failed`; the phone gets generic messages, details go to the server log.
+  - TTS dependencies are optional (`tts/requirements.txt`), so the rest of the app runs without torch. WAV is written with the standard library.
+  - `/api/tts` is registered in `api_guard` (origin check, `ACCESS_TOKEN`, per-IP rate limit `TTS_RATE_LIMIT_MAX`, default 5, body limit 20 KB); the model call is serialised by a lock.
+  - The model is under the MERaLiON-3 Public Licence. Not yet read; check before the demo.
+- **Needs from you:** wire translation output into `POST /api/tts` and add the Listen button in the UI. Say which dialect-list and error prompts (e.g. "Photo was blurry") need pre-generated audio.
+- **Local-only info:** none. Optional env vars (names only): `TTS_MODEL`, `TTS_DEVICE`, `TTS_REF_AUDIO`, `TTS_REF_TEXT`.
+
 ### 2026-11-20, darrenlsx (landing page)
 - **Pushed:** branch `feature/landing-page`. Landing page with dialect choice, plus a keynote-style demo stage (all in `static/`; no API changes)
 - **State:** Works and was tested in the browser at desktop and phone widths.
