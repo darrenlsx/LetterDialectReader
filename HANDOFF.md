@@ -15,6 +15,35 @@ Read this file first. Add a new entry at the top before every push. Never put se
 
 ---
 
+### 2026-11-20, darrenlsx (Optimize-Audio: Hokkien wording + faster voice)
+- **Pushed:** branch `Optimize-Audio` (not merged into `main`).
+- **State:** Works end to end on a CPU-only laptop (i7-1165G7). 148 tests pass.
+  - With `samples/sample_letter_shortened.jpg` (new, 45 words): OCR, summary, Chinese and Hokkien took 29 s.
+  - The voice (28.9 s of speech, 7 sentence chunks, 10 steps) was all ready 265 s after the photo.
+  - Darren listened to the step comparisons and the final clip, and picked 10 steps.
+- **Decisions:**
+  - **Hokkien wording for the voice.**
+    - `translate.to_hokkien(chinese)` makes a second DeepSeek call that rewrites the Chinese translation sentence by sentence into Singapore Hokkien wording (汝/佇/欲/拍/拜一…).
+    - It is a rewrite, not a second summary, and has the same number check with one retry as the Chinese step.
+    - `/api/translate` now also returns `hokkien`, `hokkien_confident` and `hokkien_seconds`.
+    - The phone does not show the Hokkien; it only sends it to `/api/tts`, and falls back to the Chinese if the rewrite failed.
+    - The script isn't fixed: one run gave Simplified, another Traditional. Both seem to work with the voice.
+  - **Voice speed (`TTS_NUM_STEP`, default 10; OmniVoice's own default is 32).** Measured for 33 s of speech: 32 steps 27 min, 16 steps 14 min, 8 steps 6 min. 10 was picked by ear.
+  - **Preload:** the voice model loads in a background thread at server start (`TTS_PRELOAD=1`, about 16 s), so the first letter doesn't wait for it.
+  - **Sentence chunks with gap-free playback:**
+    - `static/app.js` splits the Hokkien into chunks of about 12–40 characters and calls `/api/tts` once per chunk.
+    - Play becomes available once the audio already made lasts longer than it will take to make the rest (+15% margin).
+    - Chunks play back to back; in the browser test the gap between chunks was 1 ms.
+    - On this CPU (about 6× slower than real time) that point is only reached at the end, so there is no gain yet. On a faster machine (GPU), Play would appear after the first sentence.
+  - The `TTS_RATE_LIMIT_MAX` default is raised from 5 to 20, because one letter now makes several `/api/tts` calls.
+  - **Reference voice off by default.** The bundled MERaLiON clip made generation about 2.4× slower (71 s vs 30 s for 5.7 s of speech). Turn it on with `TTS_REF_AUDIO=bundled`, or give a WAV path plus `TTS_REF_TEXT`.
+  - `app.py` now prints our `letter_reader` info logs, e.g. "voice model loaded in X s".
+- **Needs from you:**
+  - Review the `to_hokkien` prompt in `translate/engine.py`. Is the Hokkien wording natural to you?
+  - Should the Hokkien always be in Simplified or always in Traditional?
+  - The biggest remaining speed-up is speaking a short "what to do" line instead of the whole summary.
+- **Local-only info:** the voice needs `pip install -r tts/requirements.txt` (CPU torch from `https://download.pytorch.org/whl/cpu`). The model (about 2.85 GB) is cached in `~/.cache/huggingface`. The model uses about 4.5 GB of RAM while the server runs; set `TTS_PRELOAD=0` to load it only on first use.
+
 ### 2026-11-20, darrenlsx (real Hokkien voice in the Listen card)
 - **Pushed:** branch `feature/listen-button` (PR into `main`), with `main` (simulated TTS, PR #8) merged in.
 - **State:** Works end to end in the browser on a CPU-only laptop (i7-1165G7, 16 GB RAM, torch 2.15 CPU).

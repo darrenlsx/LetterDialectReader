@@ -1,3 +1,3 @@
-from .engine import MAX_CHARS, TtsError, synthesise, validate
+from .engine import MAX_CHARS, TtsError, preload, synthesise, validate
 
-__all__ = ["synthesise", "validate", "TtsError", "MAX_CHARS"]
+__all__ = ["synthesise", "validate", "preload", "TtsError", "MAX_CHARS"]

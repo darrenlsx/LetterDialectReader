@@ -11,7 +11,11 @@ Env (from the shell or .env; all optional except OPENCODE_API_KEY):
                         or the cookie set by opening /?token=<value> once
   RATE_LIMIT_MAX        summary requests per IP per window, default 5
   OCR_RATE_LIMIT_MAX    photo uploads per IP per window, default 10
-  TTS_RATE_LIMIT_MAX    voice requests per IP per window, default 5
+  TTS_RATE_LIMIT_MAX    voice requests (sentence chunks) per IP per window, default 20
+  TTS_PRELOAD           load the voice model at server start, default 1 (0 = on first use)
+  TTS_REF_AUDIO         voice to clone; unset/"none" = off (default, faster on CPU),
+                        "bundled" = the clip shipped with the model, or a WAV path
+  TTS_NUM_STEP          voice diffusion steps, default 10 (more = slower, smoother)
   RATE_LIMIT_WINDOW_S   window length in seconds, default 60
 
 For the phone demo on the LAN: uvicorn app:app --host 0.0.0.0, with ACCESS_TOKEN set.
@@ -24,6 +28,7 @@ import os
 import tempfile
 import threading
 import time
+from contextlib import asynccontextmanager
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -34,11 +39,16 @@ from fastapi.staticfiles import StaticFiles
 
 from ocr import SUPPORTED_EXTENSIONS, UnsupportedImageError, extract_text_with_confidence
 from summary import SummariseError, load_dotenv, summarise
-from translate import TranslateError, translate
-from tts import TtsError, synthesise
+from translate import TranslateError, to_hokkien, translate
+from tts import TtsError, preload, synthesise
 
 load_dotenv()
 log = logging.getLogger("letter_reader")
+if not log.handlers:  # show our info lines (e.g. "voice model loaded") next to uvicorn's
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(logging.Formatter("%(levelname)s:     %(name)s - %(message)s"))
+    log.addHandler(_handler)
+    log.setLevel(logging.INFO)
 
 STATIC_DIR = Path(__file__).parent / "static"
 MAX_UPLOAD_BYTES = 15 * 1024 * 1024
@@ -75,7 +85,26 @@ TRANSLATE_ERRORS = {
     "model_failed": (502, "The translation service is not available right now."),
 }
 
-app = FastAPI(title="LetterDialectReader")
+def start_voice_preload() -> threading.Thread | None:
+    """Load the voice model in the background so the first letter doesn't wait for it.
+
+    Pages and the other APIs are served straight away; a /api/tts request that
+    arrives during loading waits for it. TTS_PRELOAD=0 turns this off.
+    """
+    if os.environ.get("TTS_PRELOAD", "1").strip() == "0":
+        return None
+    thread = threading.Thread(target=preload, name="voice-preload", daemon=True)
+    thread.start()
+    return thread
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    start_voice_preload()
+    yield
+
+
+app = FastAPI(title="LetterDialectReader", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
@@ -150,7 +179,8 @@ _WINDOW_S = float(os.environ.get("RATE_LIMIT_WINDOW_S", "60"))
 summary_limiter = RateLimiter(int(os.environ.get("RATE_LIMIT_MAX", "5")), _WINDOW_S)
 translate_limiter = RateLimiter(int(os.environ.get("RATE_LIMIT_MAX", "5")), _WINDOW_S)
 ocr_limiter = RateLimiter(int(os.environ.get("OCR_RATE_LIMIT_MAX", "10")), _WINDOW_S)
-tts_limiter = RateLimiter(int(os.environ.get("TTS_RATE_LIMIT_MAX", "5")), _WINDOW_S)
+# One letter's voice is made in several sentence chunks, so this allows more calls.
+tts_limiter = RateLimiter(int(os.environ.get("TTS_RATE_LIMIT_MAX", "20")), _WINDOW_S)
 
 # POST routes guarded by api_guard: path -> (limiter name, max body bytes).
 # The multipart allowance covers form boundaries/headers around the photo.
@@ -262,6 +292,19 @@ async def translate_endpoint(request: Request):
         log.exception("translate crashed")
         raise HTTPException(500, "Something went wrong. Please try again.") from None
     result["seconds"] = round(time.perf_counter() - start, 1)
+
+    # Hokkien wording for the voice only (not shown on the phone). A failure here
+    # must not lose the Chinese result: the phone then speaks the Chinese instead.
+    start = time.perf_counter()
+    try:
+        hokkien = await run_in_threadpool(to_hokkien, result["text"])
+        result["hokkien"] = hokkien["text"]
+        result["hokkien_confident"] = hokkien["confident"]
+    except Exception as exc:
+        log.error("hokkien rewrite failed: %s", getattr(exc, "detail", None) or exc, exc_info=exc)
+        result["hokkien"] = None
+        result["hokkien_confident"] = False
+    result["hokkien_seconds"] = round(time.perf_counter() - start, 1)
     return result
 
 
