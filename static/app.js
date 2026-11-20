@@ -116,8 +116,6 @@ const markEl = document.getElementById("mark");
 const summaryStatus = document.getElementById("summary-status");
 const summaryEl = document.getElementById("summary");
 const warnEl = document.getElementById("warn");
-const detailsHeading = document.getElementById("details-heading");
-const detailsEl = document.getElementById("details");
 const summaryTiming = document.getElementById("summary-timing");
 
 // The translation lives inside the summary card: only the Chinese text is shown.
@@ -148,8 +146,6 @@ function resetSummary() {
   summaryEl.textContent = "";
   warnEl.hidden = true;
   warnEl.textContent = "";
-  detailsHeading.hidden = true;
-  detailsEl.textContent = "";
   summaryTiming.textContent = "";
 }
 
@@ -175,17 +171,6 @@ function renderSummary(data) {
   if (data.unclear_parts && data.unclear_parts.length) notes.push(`Unclear: ${data.unclear_parts.join(" | ")}`);
   warnEl.textContent = notes.join(" ");
   warnEl.hidden = notes.length === 0;
-
-  const details = data.key_details || [];
-  detailsHeading.hidden = details.length === 0;
-  for (const d of details) {
-    const li = document.createElement("li");
-    const tag = document.createElement("span");
-    tag.className = "tag";
-    tag.textContent = d.type;
-    li.append(tag, d.text);
-    detailsEl.append(li);
-  }
 }
 
 // Only the latest photo may update the screen. A new photo aborts the previous

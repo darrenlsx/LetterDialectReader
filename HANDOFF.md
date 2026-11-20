@@ -15,6 +15,13 @@ Read this file first. Add a new entry at the top before every push. Never put se
 
 ---
 
+### 2026-11-20, darrenlsx (remove key details)
+- **Pushed:** `main` directly. Removed the 重要资料 Key details list from the Summary card (HTML and JS). The card now shows only the ✓/✗ mark, the Chinese summary and the timing line.
+- **State:** 120 tests pass. Checked in the browser with the sample letter: only Chinese text shown, no errors.
+- **Decisions:** `key_details` is still returned by `/api/summary` but not shown. The English "ask family to check" warning is kept as the only safety signal; it may later be shown in Chinese.
+- **Needs from you:** none
+- **Local-only info:** none
+
 ### 2026-11-20, darrenlsx (Chinese-only summary)
 - **Pushed:** `main` directly (no branch). The 摘要 Summary card now shows only the Chinese translation. The English summary is hidden and the separate 中文 card is gone.
 - **State:** 120 tests pass. Checked in the browser with `samples/sample_letter.jpg`: ✓ shown, Chinese text, no warnings, 38s from photo. ESLint is not installed locally, so lint was not run.
