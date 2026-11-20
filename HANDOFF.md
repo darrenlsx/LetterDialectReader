@@ -15,6 +15,32 @@ Read this file first. Add a new entry at the top before every push. Never put se
 
 ---
 
+### 2026-11-20, OzzyOw (review fixes on `feature/ocr-summary`)
+- **Pushed:** branch `feature/ocr-summary` (PR #3), fixes from a code review, plus `main` (logo) merged in
+- **State:** 64 tests pass (`python -m pytest`), lint clean.
+- **Decisions:**
+  - **Blurry photos:** `ocr/engine.py` has a new `extract_text_with_confidence(path) -> (text, score)`; `extract_text` is unchanged for callers. `/api/ocr` now also returns `confidence` and `readable`. `readable` needs 20+ characters and confidence ≥ 0.9. Calibrated on `samples/sample_letter.jpg`: blur radius 0-3 scored 0.94-0.97 and read correctly; radius 4 scored 0.83 and misread the date as "20 Noventer 2828", so it now gets the cross instead of a wrong summary. **Please re-check the threshold with real phone photos.**
+  - **API guard (middleware) for `/api/ocr` and `/api/summary`:** cross-origin check, optional `ACCESS_TOKEN`, per-IP rate limits (summary 5/min, OCR 10/min), and `Content-Length` required and capped before any body is read.
+  - **Phone UI:** a new photo aborts the previous photo's requests, and late replies are ignored, so two letters can't mix on screen.
+  - `.env` loading now strips inline comments (`RATE_LIMIT_MAX=5  # note` → `5`) and accepts quotes and `export`.
+- **How to run on the phone:** set `ACCESS_TOKEN` in `.env`, run `uvicorn app:app --host 0.0.0.0`, open `http://<your-LAN-IP>:8000/?token=<value>` once on the phone.
+- **Needs from you:** review the `ocr/engine.py` change (new function; scores come from PaddleOCR's `rec_scores`).
+- **Local-only info:** none new.
+
+### 2026-11-20, OzzyOw (summary ported to Python, wired into the OCR app)
+- **Pushed:** branch `feature/ocr-summary` (PR into `main`): photo → OCR → summary in one flow in the Python app
+- **State:**
+  - `summary/` is a Python port of the Node summariser (`from summary import summarise`), same behaviour and tests, standard library only.
+  - `app.py` has `POST /api/summary` (JSON `{text}`), rate-limited per IP, rejects cross-origin POSTs, generic errors to the phone with details in the server log. It loads `.env` itself.
+  - `static/`: after OCR, the Summary card fills in automatically: tick/cross, summary, "please ask family" warning when not confident, key details, total time from photo. OCR text under 20 characters shows a cross and "Photo was blurry. Please take the picture again."
+  - Tests: `python -m pytest` (`tests/`). Lint: `npm run lint` (ESLint for `static/app.js`).
+- **Decisions:**
+  - One runtime: the Node server (`server.js`, `src/`, `public/`, `test/`) is removed; Python is the only app.
+  - Run with `uvicorn app:app --reload`, open http://localhost:8000. For the phone on the LAN add `--host 0.0.0.0` (the summary endpoint is rate-limited; there's no access token any more).
+  - Install with `pip install -r requirements-dev.txt` (adds pytest and httpx for tests).
+- **Needs from you:** review `app.py` and `static/` changes, since they're your files. Speech (MERaLion) and Hokkien output are still to do; the summary is English.
+- **Local-only info:** `.env` needs `OPENCODE_API_KEY` (copy `.env.template`).
+
 ### 2026-11-20, darrenlsx (logo)
 - **Pushed:** branch `feature/logo`: app logo `static/logo.svg` (信 in a speech bubble, blue `#0b5ed7`, same as the main button), shown in the phone header and used as the favicon
 - **State:** Works in the OCR demo (`static/`). Not yet in `public/index.html` (the Node page).
